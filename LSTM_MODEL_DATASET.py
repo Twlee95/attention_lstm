@@ -10,6 +10,8 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import csv
 import pandas as pd
+import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
 data = np.array([1,2,3,4,5,6,7,8,9,10])
 data[:5+1]
 data[5:]
@@ -47,6 +49,49 @@ def metric3(y_pred, y_true):
 
 ## batch를 만들어주는것이 pytorch의 data loader임, random sample도 만들어줌
 ## data loader는 파이토치에 구현되어있음
+
+
+class CV_Data_Spliter:
+    def __init__(self, symbol, data_start, data_end):
+        self.symbol = symbol
+        self.start = datetime.datetime(*data_start)
+        self.end = datetime.datetime(*data_end)
+        self.data =pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+
+        print(self.data.isna().sum())
+
+
+
+
+class StockDatasetCV(Dataset):
+
+    def __init__(self,  x_frames, y_frames,data):
+        self.x_frames = x_frames
+        self.y_frames = y_frames
+        self.data = data
+        print(self.data.isna().sum())
+
+    ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
+    def __len__(self):
+        return len(self.data) - (self.x_frames + self.y_frames) + 1
+
+    ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
+    ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
+    def __getitem__(self, idx):
+        idx += self.x_frames
+        data = self.data.iloc[idx - self.x_frames:idx + self.y_frames]
+        #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
+        data = data[['Close']]
+        ## nomalization
+        data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
+        data = data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
+        ## x와 y 기준으로 split
+        X = data[:self.x_frames]
+        y = data[self.x_frames:]
+
+        return X, y
+
+
 class StockDataset(Dataset):
 
     def __init__(self, symbol, x_frames, y_frames, start, end):
@@ -79,6 +124,9 @@ class StockDataset(Dataset):
         y = data[self.x_frames:]
 
         return X, y
+
+
+
 
 class csvStockDataset(Dataset):
 
