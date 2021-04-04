@@ -56,7 +56,7 @@ class CV_Data_Spliter:
         self.symbol = symbol
         self.start = datetime.datetime(*data_start)
         self.end = datetime.datetime(*data_end)
-        self.data =pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
 
         print(self.data.isna().sum())
 

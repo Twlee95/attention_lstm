@@ -146,42 +146,70 @@ a.index(max(a))
 
 
 
+import LSTM_MODEL_DATASET as LSTMMD
 
-
-
-
-
-
+trainset = LSTMMD.StockDataset('^KS11', 7, 1, (2000, 1, 1), (2013, 1, 1))
+for i in trainset:
+    print(i)
+    break
 
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
-X = np.array([[1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4],
-              [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4]])
+import pandas_datareader.data as pdr
+import datetime
+print(tscv)
+
+tscv.split(trainset[0],trainset[1])
+
+data_start = (2000, 1, 1)
+data_end = (2020, 12, 31)
+data = pdr.DataReader('^KS11', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
+
+tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=7, test_size=300)
+
+type(trainset)
+a=np.array([1,2,3,4])
+print(a)
+
+for train_index, test_index in tscv.split(data):
+    print("TRAIN:", train_index, "TEST:", test_index)
+    X_train, X_test = data.iloc[train_index,:], data.iloc[test_index]
+
+
+
+
+X = np.array([[11, 12], [13, 14], [15, 16], [17, 18], [19, 110],
+              [21, 22], [23, 24], [25, 26], [27, 28], [29, 210],
+              [31, 32], [33, 34], [35, 36], [37, 38], [39, 310],
+              [41, 42], [43, 44], [45, 46], [47, 48], [49, 410],
+              [51, 52], [53, 54], [55, 56], [57, 58], [59, 510],
+              [61, 62], [63, 64], [65, 66], [67, 68], [69, 610],
+              [71, 72], [73, 74], [75, 76], [77, 78], [79, 710],
+              [81, 82], [83, 84], [85, 86], [87, 88], [89, 810],
+              [91, 92], [93, 94], [95, 96], [97, 98], [99, 910]])
 y = np.array([1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6,
-              1, 2, 3, 4, 5, 6])
+              7, 8, 9, 10, 11, 12,
+              13, 14, 15, 16, 17, 18,
+              19, 20, 21, 22, 23, 24,
+              25, 26, 27, 28, 29, 30,
+              31, 32, 33, 34, 35, 36,
+              37, 38, 39, 40, 41, 42,
+              43, 44, 45, 46, 47, 48,
+              49, 50, 51, 52, 53, 54])
 tscv = TimeSeriesSplit()
 
 
 print(tscv)
-tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=20, test_size=None)
+tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=5, test_size=1)
 for train_index, test_index in tscv.split(X):
     print("TRAIN:", train_index, "TEST:", test_index)
-    X_train, X_test = X[train_index], X[test_index]
-    y_train, y_test = y[train_index], y[test_index]
+    print(type(train_index))
+    break
+
+    X_train, X_test = trainset[train_index], trainset[test_index]
+
+
+
 # TRAIN: [0] TEST: [1]
 # TRAIN: [0 1] TEST: [2]
 # TRAIN: [0 1 2] TEST: [3]

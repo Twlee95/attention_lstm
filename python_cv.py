@@ -315,8 +315,13 @@ for i in model_list:
 
         ## 데이터 load.
         ## train_test_split
+        TSCV = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=7, test_size=300)
+        TSCV.split(trainset)
+        for train_index, test_index in TSCV.split(trainset):
+            print("TRAIN:", train_index, "TEST:", test_index)
+            X_train, X_test = trainset[train_index], trainset[test_index]
 
-
+        data = pdr.DataReader(symbol, 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
         trainset = StockDatasetCV(args.x_frames, args.y_frames,data)
         tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=5, test_size=3)
         for train_index, test_index in tscv.split(X):
