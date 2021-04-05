@@ -51,21 +51,64 @@ def metric3(y_pred, y_true):
 ## data loader는 파이토치에 구현되어있음
 
 
+
+
+
 class CV_Data_Spliter:
-    def __init__(self, symbol, data_start, data_end):
+    def __init__(self, symbol, data_start, data_end,test_size,gap=0):
         self.symbol = symbol
         self.start = datetime.datetime(*data_start)
         self.end = datetime.datetime(*data_end)
         self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
-
+        self.test_size = test_size
+        self.gap = gap
         print(self.data.isna().sum())
 
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits = 1, test_size=self.test_size)
+
+    def ts_cv_List(self):
+        list = []
+        for train_index, test_index in self.tscv.split(data):
+            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
+            list.append((X_train, X_test))
+        return list
+
+    def __len__(self):
+        return self.n_splits
+
+    def __getitem__(self, item):
+        datalist = self.ts_cv_List()
+        return datalist[item]
+
+
+class CV_train_Spliter:
+    def __init__(self,data, symbol,test_size,gap=0):
+        self.symbol = symbol
+        self.data = data
+        self.test_size = test_size
+        self.gap = gap
+        print(self.data.isna().sum())
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=1, test_size=self.test_size)
+
+    def ts_cv_List(self):
+        list = []
+        for train_index, test_index in self.tscv.split(data):
+            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
+            list.append((X_train, X_test))
+        return list
+
+    def __len__(self):
+        return self.n_splits
+
+    def __getitem__(self, item):
+        datalist = self.ts_cv_List()
+        return datalist[item]
 
 
 
 class StockDatasetCV(Dataset):
 
-    def __init__(self,  x_frames, y_frames,data):
+    def __init__(self,data , x_frames, y_frames):
         self.x_frames = x_frames
         self.y_frames = y_frames
         self.data = data

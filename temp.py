@@ -157,12 +157,49 @@ import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
 import pandas_datareader.data as pdr
 import datetime
+
+class CV_Data_Spliter:
+    def __init__(self, symbol, data_start, data_end,n_splits,test_size,gap=0):
+        self.symbol = symbol
+        self.start = datetime.datetime(*data_start)
+        self.end = datetime.datetime(*data_end)
+        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.n_splits = n_splits
+        self.test_size = test_size
+        self.gap = gap
+        print(self.data.isna().sum())
+
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=self.n_splits, test_size=self.test_size)
+
+    def ts_cv_List(self):
+        list = []
+        for train_index, test_index in self.tscv.split(self.data):
+            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
+            list.append((X_train, X_test))
+        return list
+
+    def __len__(self):
+        return self.n_splits
+
+    def __getitem__(self, item):
+        datalist = self.ts_cv_List()
+        return datalist[item]
+
 print(tscv)
 
 tscv.split(trainset[0],trainset[1])
 
-data_start = (2000, 1, 1)
+
+data_start = (2010, 1, 1)
 data_end = (2020, 12, 31)
+cvds = CV_Data_Spliter('^KS11',data_start,data_end,n_splits=7,test_size=300)
+
+
+cvds[0]
+
+
+
+
 data = pdr.DataReader('^KS11', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
 
 tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=7, test_size=300)

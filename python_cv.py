@@ -15,6 +15,8 @@ from LSTM_MODEL_DATASET import metric3 as metric3
 from sklearn.model_selection import TimeSeriesSplit
 import csv
 import os
+from LSTM_MODEL_DATASET import CV_Data_Spliter
+
 
 os.getcwd()
 os.chdir('C:\\Users\\lee\\PycharmProjects\\LSTM')
@@ -241,7 +243,7 @@ args.use_bn = True
 args.optim = 'RMSprop'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
 args.epoch = 2
-
+args.split = 7
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -276,7 +278,7 @@ partition = {'train': trainset, 'val': valset, 'test': testset}
 
 
 
-iteration=1
+
 model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 data_list = ['^KS11', '^KQ11','^IXIC','^GSPC','^DJI','^HSI',
              '^N225','^GDAXI','^FCHI','^IBEX','^TWII','^AEX',
@@ -300,7 +302,7 @@ for i in model_list:
             data_start = (2013, 3, 3)
             data_end = (2020, 12, 31)
         elif args.symbol == 'CL=F':
-            data_start = (2000, 8, 23)
+            data_start = (2011, 1, 1)               ##(2000, 8, 23)
             data_end = (2020, 12, 31)
         elif args.symbol == 'BTC-USD':
             data_start = (2014, 9, 17)
@@ -309,37 +311,31 @@ for i in model_list:
             data_start = (2015, 8, 7)
             data_end = (2020, 12, 31)
         else:  ## 나머지 모든 데이터들
-            data_start = (2000, 1, 1)
+            data_start = (2011, 1, 1)
             data_end = (2020, 12, 31)
 
-
-        ## 데이터 load.
-        ## train_test_split
-        TSCV = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=7, test_size=300)
-        TSCV.split(trainset)
-        for train_index, test_index in TSCV.split(trainset):
-            print("TRAIN:", train_index, "TEST:", test_index)
-            X_train, X_test = trainset[train_index], trainset[test_index]
-
-        data = pdr.DataReader(symbol, 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
-        trainset = StockDatasetCV(args.x_frames, args.y_frames,data)
-        tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=5, test_size=3)
-        for train_index, test_index in tscv.split(X):
-            print("TRAIN:", train_index, "TEST:", test_index)
-            X_train, X_test = X[train_index], X[test_index]
-            y_train, y_test = y[train_index], y[test_index]
-        partition = {'train': trainset, 'val': valset, 'test': testset}
+        splitted_test_train = CV_Data_Spliter(args.symbol,data_start,data_end,n_splits=args.split,test_size=300)
 
         test_value_list = []
-        for k, iteration_n in enumerate(range(iteration)):
+        for iteration_n in range(args.split):
             args.iteration = iteration_n
+            train_data, test_data = splitted_test_train[args.iteration][0], splitted_test_train[args.iteration][1]
+            splitted_train_val = CV_train_Spliter(train_data,args.symbol,test_size=300)
+            train_data, val_data = splitted_train_val[args.iteration][0], splitted_train_val[args.iteration][1]
+
+            trainset = StockDataset(train_data, args.x_frames, args.y_frames)
+            valset   = StockDataset(val_data, args.x_frames, args.y_frames)
+            testset  = StockDataset(test_data, args.x_frames, args.y_frames)
+            partition = {'train': trainset, 'val': valset, 'test': testset}
+
             args.innate_path = args.new_file_path + '\\' + str(args.iteration) +'_iter' ## 내부 파일경로
             os.makedirs(args.innate_path)
             print(args)
-            ## 실험을 실행했다.
+
             setting, result = experiment(partition, deepcopy(args))
             test_value_list.append(result['test_loss'])
 
+            ## 그림
             fig = plt.figure()
             plt.plot(result['train_losses'])
             plt.plot(result['val_losses'])
