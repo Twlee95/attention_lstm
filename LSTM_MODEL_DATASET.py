@@ -15,7 +15,7 @@ from sklearn.model_selection import TimeSeriesSplit
 
 
 
-def metric(y_pred, y_true):
+def metric1(y_pred, y_true):
     perc_y_pred = np.exp(y_pred.cpu().detach().numpy())
     perc_y_true = np.exp(y_true.cpu().detach().numpy())
     # mean_absolute_error : 차이의 절댓값을 loss function으로 사용

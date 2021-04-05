@@ -1,3 +1,0 @@
-test_loss_metric : 0.13606733083724976 
- test_loss_metric2 : 0.019981611520051956 
- test_loss_metric3 : 0.13658398389816284

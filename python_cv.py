@@ -10,7 +10,7 @@ import argparse
 from copy import deepcopy # Add Deepcopy for args
 import matplotlib.pyplot as plt
 import LSTM_MODEL_DATASET as LSTMMD
-from LSTM_MODEL_DATASET import metric as metric
+from LSTM_MODEL_DATASET import metric1 as metric1
 from LSTM_MODEL_DATASET import metric2 as metric2
 from LSTM_MODEL_DATASET import metric3 as metric3
 from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
@@ -83,7 +83,7 @@ def test(model, partition, args):
                            batch_size=args.batch_size,
                            shuffle=False, drop_last=True)
     model.eval()
-    test_loss_metric = 0.0
+    test_loss_metric1 = 0.0
     test_loss_metric2 = 0.0
     test_loss_metric3 = 0.0
     with torch.no_grad():
@@ -99,14 +99,14 @@ def test(model, partition, args):
             # print('test metric(y_pred, y_true): {},shape : {}'.format(metric(y_pred, y_true), metric(y_pred, y_true).shape))
             # print('test metric(y_pred, y_true)[0]: {},shape : {}'.format(metric(y_pred, y_true)[0] ,metric(y_pred, y_true)[0].shape))
 
-            test_loss_metric += metric(y_pred, y_true.squeeze())[0]
+            test_loss_metric1 += metric1(y_pred, y_true.squeeze())[0]
             test_loss_metric2 += metric2(y_pred, y_true.squeeze())[0]
             test_loss_metric3 += metric3(y_pred, y_true.squeeze())[0]
 
-    test_loss_metric = test_loss_metric / len(testloader)
+    test_loss_metric1 = test_loss_metric1 / len(testloader)
     test_loss_metric2 = test_loss_metric2 / len(testloader)
     test_loss_metric3 = test_loss_metric3 / len(testloader)
-    return test_loss_metric, test_loss_metric2, test_loss_metric3
+    return test_loss_metric1, test_loss_metric2, test_loss_metric3
 
 
 def experiment(partition, args):
@@ -144,32 +144,29 @@ def experiment(partition, args):
         # ============================ #
         ## 각 에폭마다 모델을 저장하기 위한 코드
         torch.save(model.state_dict(), args.innate_path + '\\' + str(epoch) +'_epoch' + '.pt')
-        print('Epoch {}, Loss(train/val) {:2.5f}/{:2.5f}. Took {:2.2f} sec, Iteration {}'.format(epoch,train_loss,val_loss,te - ts, args.iteration))
+        print('Epoch {}, Loss(train/val) {:2.5f}/{:2.5f}. Took {:2.2f} sec, Iteration {}'
+              .format(epoch, train_loss, val_loss, te - ts, args.iteration))
     ## 여기서 구하는것은 val_losses에서 가장 값이 최대인 위치를 저장함
     site_val_losses = val_losses.index(min(val_losses)) ## 10 epoch일 경우 0번째~9번째 까지로 나옴
     model = args.model(args.input_dim, args.hid_dim, args.y_frames, args.n_layers, args.batch_size, args.dropout,args.use_bn)
     model.to(args.device)
     model.load_state_dict(torch.load(args.innate_path + '\\' + str(site_val_losses) +'_epoch' + '.pt'))
 
-    test_loss_metric, test_loss_metric2, test_loss_metric3 = test(model, partition, args)
-    print('test_loss_metric: {},\n test_loss_metric2: {}, \ntest_loss_metric3: {}'.format(test_loss_metric,test_loss_metric2,test_loss_metric3))
+    test_loss_metric1, test_loss_metric2, test_loss_metric3 = test(model, partition, args)
+    print('test_loss_metric1: {},\n test_loss_metric2: {}, \ntest_loss_metric3: {}'
+          .format(test_loss_metric1,test_loss_metric2,test_loss_metric3))
 
     with open(args.innate_path + '\\'+ str(site_val_losses)+'Epoch_test_metric' +'.txt', 'w') as f:
-        print('test_loss_metric : {} \n test_loss_metric2 : {} \n test_loss_metric3 : {}'.format(test_loss_metric, test_loss_metric2, test_loss_metric3), file=f)
+        print('test_loss_metric1 : {} \n test_loss_metric2 : {} \n test_loss_metric3 : {}'
+              .format(test_loss_metric1, test_loss_metric2, test_loss_metric3), file=f)
     # ======= Add Result to Dictionary ======= #
     result = {}
     result['train_losses'] = train_losses
     result['val_losses'] = val_losses
-    result['test_loss_metric'] = test_loss_metric
+    result['test_loss_metric1'] = test_loss_metric1
     result['test_loss_metric2'] = test_loss_metric2
     result['test_loss_metric3'] = test_loss_metric3
     return vars(args), result      ## vars(args) 1: args에있는 attrubute들을 dictionary 형태로 보길 원한다면 vars 함
-
-
-
-
-
-
 
 
 # ====== Random Seed Initialization ====== #
@@ -203,7 +200,7 @@ args.use_bn = True
 args.optim = 'RMSprop'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
 args.epoch = 2
-args.split = 6
+args.split = 8
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -233,54 +230,6 @@ partition = {'train': trainset, 'val': valset, 'test': testset}
 # 10년만기 미국 국채
 # 'BTC-USD' : 비트코인 암호화폐
 # 'ETH-USD' : 이더리움 암호화폐
-import time
-import pandas_datareader.data as pdr
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_percentage_error
-import datetime
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
-import csv
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import TimeSeriesSplit
-a=[1,2,3,4,5,6,7,8,9,0,2,3,4]
-print(len(a)/10)
-
-
-class CV_Data_Spliter:
-    def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
-        self.symbol = symbol
-        self.n_splits = n_splits
-        self.start = datetime.datetime(*data_start)
-        self.end = datetime.datetime(*data_end)
-        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
-        self.test_size = len(self.data)/10
-        self.gap = gap
-        print(self.data.isna().sum())
-
-        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits = self.n_splits, test_size = self.test_size)
-
-    def ts_cv_List(self):
-        list = []
-        for train_index, test_index in self.tscv.split(self.data):
-            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
-            list.append((X_train, X_test))
-        return list
-
-    def test_size(self):
-        return self.test_size
-
-    def __len__(self):
-        return self.n_splits
-
-    def __getitem__(self, item):
-        datalist = self.ts_cv_List()
-        return datalist[item]
-
 
 
 model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
@@ -320,14 +269,13 @@ for i in model_list:
 
         splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
 
-        test_metric_list = []
+        test_metric1_list = []
         test_metric2_list = []
         test_metric3_list = []
         for iteration_n in range(args.split):
             args.iteration = iteration_n
             train_data, test_data = splitted_test_train[args.iteration][0], splitted_test_train[args.iteration][1]
             test_size = splitted_test_train.test_size
-            print(train_data)
             splitted_train_val = CV_train_Spliter(train_data,args.symbol,test_size=test_size)
             train_data, val_data = splitted_train_val[1][0], splitted_train_val[1][1]
 
@@ -342,7 +290,7 @@ for i in model_list:
 
 
             setting, result = experiment(partition, deepcopy(args))
-            test_metric_list.append(result['test_loss_metric'])
+            test_metric1_list.append(result['test_loss_metric1'])
             test_metric2_list.append(result['test_loss_metric2'])
             test_metric3_list.append(result['test_loss_metric3'])
 
@@ -361,19 +309,17 @@ for i in model_list:
             ## 지정한 모델과, 지정한 데이터셋에 대한 결과가 저장되게된다.
             ## 지금 하려고 하는것은 result directory에 modek 마다, dataset 마다 iteration  원하는 데이터셋에
             #save_exp_result(setting, result)
-        avg_test_metric  = sum(test_metric_list) / len(test_metric_list)
+        avg_test_metric1 = sum(test_metric1_list) / len(test_metric1_list)
         avg_test_metric2 = sum(test_metric2_list) / len(test_metric2_list)
         avg_test_metric3 = sum(test_metric3_list) / len(test_metric3_list)
 
-        std_test_metric  = np.std(test_metric_list)
+        std_test_metric1 = np.std(test_metric1_list)
         std_test_metric2 = np.std(test_metric2_list)
         std_test_metric3 = np.std(test_metric3_list)
         with open(args.new_file_path + '\\' + 'result_t.txt', 'w') as f:
-            print('metric \n avg: {}, std : {}\n'.format(avg_test_metric, std_test_metric), file=f)
+            print('metric1 \n avg: {}, std : {}\n'.format(avg_test_metric1, std_test_metric1), file=f)
             print('metric2 \n avg: {}, std : {}\n'.format(avg_test_metric2, std_test_metric2), file=f)
             print('metric3 \n avg: {}, std : {}\n'.format(avg_test_metric3, std_test_metric3), file=f)
-        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol ,avg_test_metric))
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric1))
         print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric2))
         print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric3))
-
-
