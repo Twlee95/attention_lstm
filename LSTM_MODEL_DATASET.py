@@ -12,9 +12,7 @@ import csv
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
-data = np.array([1,2,3,4,5,6,7,8,9,10])
-data[:5+1]
-data[5:]
+
 
 
 def metric(y_pred, y_true):
@@ -55,23 +53,27 @@ def metric3(y_pred, y_true):
 
 
 class CV_Data_Spliter:
-    def __init__(self, symbol, data_start, data_end,test_size,gap=0):
+    def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
         self.symbol = symbol
+        self.n_splits = n_splits
         self.start = datetime.datetime(*data_start)
         self.end = datetime.datetime(*data_end)
         self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
-        self.test_size = test_size
+        self.test_size = len(self.data)//10
         self.gap = gap
         print(self.data.isna().sum())
 
-        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits = 1, test_size=self.test_size)
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits = self.n_splits, test_size = self.test_size)
 
     def ts_cv_List(self):
         list = []
-        for train_index, test_index in self.tscv.split(data):
+        for train_index, test_index in self.tscv.split(self.data):
             X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
             list.append((X_train, X_test))
         return list
+
+    def test_size(self):
+        return self.test_size
 
     def __len__(self):
         return self.n_splits
@@ -88,17 +90,14 @@ class CV_train_Spliter:
         self.test_size = test_size
         self.gap = gap
         print(self.data.isna().sum())
-        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=1, test_size=self.test_size)
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=2, test_size=self.test_size)
 
     def ts_cv_List(self):
         list = []
-        for train_index, test_index in self.tscv.split(data):
+        for train_index, test_index in self.tscv.split(self.data):
             X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
             list.append((X_train, X_test))
         return list
-
-    def __len__(self):
-        return self.n_splits
 
     def __getitem__(self, item):
         datalist = self.ts_cv_List()

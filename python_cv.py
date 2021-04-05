@@ -1,3 +1,5 @@
+import sys
+sys.path.append('C:\\Users\\lee\\PycharmProjects\\LSTM')
 import time
 import torch
 import torch.nn as nn
@@ -8,24 +10,13 @@ import argparse
 from copy import deepcopy # Add Deepcopy for args
 import matplotlib.pyplot as plt
 import LSTM_MODEL_DATASET as LSTMMD
-import LSTM_MODEL_DATASET.StockDatasetCV as StockDatasetCV
 from LSTM_MODEL_DATASET import metric as metric
 from LSTM_MODEL_DATASET import metric2 as metric2
 from LSTM_MODEL_DATASET import metric3 as metric3
-from sklearn.model_selection import TimeSeriesSplit
-import csv
+from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
+from LSTM_MODEL_DATASET import CV_Data_Spliter as CV_Data_Spliter
+from LSTM_MODEL_DATASET import CV_train_Spliter as CV_train_Spliter
 import os
-from LSTM_MODEL_DATASET import CV_Data_Spliter
-
-
-os.getcwd()
-os.chdir('C:\\Users\\lee\\PycharmProjects\\LSTM')
-import sys
-for i in sys.path:
-    print(i)
-
-sys.path.append('C:\\Users\\lee\\PycharmProjects\\LSTM')
-sys.path.append('C:\\Users\\USER\\PycharmProjects\\LSTM')
 
 
 def train(model, partition, optimizer, loss_fn, args):
@@ -108,9 +99,9 @@ def test(model, partition, args):
             # print('test metric(y_pred, y_true): {},shape : {}'.format(metric(y_pred, y_true), metric(y_pred, y_true).shape))
             # print('test metric(y_pred, y_true)[0]: {},shape : {}'.format(metric(y_pred, y_true)[0] ,metric(y_pred, y_true)[0].shape))
 
-            test_loss_metric += args.metric(y_pred, y_true.squeeze())[0]
-            test_loss_metric2 += args.metric2(y_pred, y_true.squeeze())[0]
-            test_loss_metric3 += args.metric3(y_pred, y_true.squeeze())[0]
+            test_loss_metric += metric(y_pred, y_true.squeeze())[0]
+            test_loss_metric2 += metric2(y_pred, y_true.squeeze())[0]
+            test_loss_metric3 += metric3(y_pred, y_true.squeeze())[0]
 
     test_loss_metric = test_loss_metric / len(testloader)
     test_loss_metric2 = test_loss_metric2 / len(testloader)
@@ -161,7 +152,7 @@ def experiment(partition, args):
     model.load_state_dict(torch.load(args.innate_path + '\\' + str(site_val_losses) +'_epoch' + '.pt'))
 
     test_loss_metric, test_loss_metric2, test_loss_metric3 = test(model, partition, args)
-    print('test_loss_metric: {}, test_loss_metric2: {},test_loss_metric3: {}'.format(test_loss_metric,test_loss_metric2,test_loss_metric3))
+    print('test_loss_metric: {},\n test_loss_metric2: {}, \ntest_loss_metric3: {}'.format(test_loss_metric,test_loss_metric2,test_loss_metric3))
 
     with open(args.innate_path + '\\'+ str(site_val_losses)+'Epoch_test_metric' +'.txt', 'w') as f:
         print('test_loss_metric : {} \n test_loss_metric2 : {} \n test_loss_metric3 : {}'.format(test_loss_metric, test_loss_metric2, test_loss_metric3), file=f)
@@ -174,37 +165,6 @@ def experiment(partition, args):
     result['test_loss_metric3'] = test_loss_metric3
     return vars(args), result      ## vars(args) 1: args에있는 attrubute들을 dictionary 형태로 보길 원한다면 vars 함
 
-# manage experiment
-import hashlib
-import json ## 파일로 저장하는 dictionary
-from os import listdir
-from os.path import isfile, join
-import pandas as pd
-
-
-def save_exp_result(setting, result):
-    exp_name = setting['exp_name']
-    del setting['epoch']   ## epoch이 바뀌어도 다른 파일이 생기지 않도록 하는 코드(hash를 만들 때 고려가 안되도록)
-
-    hash_key = hashlib.sha1(str(setting).encode()).hexdigest()[:6]
-    filename = './results/{}-{}.json'.format(exp_name, hash_key)
-    result.update(setting)     ## result라는 dictionary에 실험결과와함께 실험 setting도 저장하고싶기때문에 dic+dic >>.update를 사용
-    with open(filename, 'w') as f:    ## 이렇게하면 저장이 끝남 ('w'는 쓰기모드이다, 'r' : 읽기모드)
-        json.dump(result, f)
-
-## linux 같은 terminal 이었으면 폴더에 들어가서 text.json이 저장이 되어 있었어야함
-
-def load_exp_result(exp_name):
-    dir_path = 'results'
-    filenames = [f for f in listdir(dir_path) if isfile(join(dir_path, f)) if '.json' in f]
-    list_result = []
-    for filename in filenames:
-        if exp_name in filename:
-            with open(join(dir_path, filename), 'r') as infile:
-                results = json.load(infile)
-                list_result.append(results)
-    df = pd.DataFrame(list_result)  # .drop(columns=[])
-    return df
 
 
 
@@ -243,7 +203,7 @@ args.use_bn = True
 args.optim = 'RMSprop'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
 args.epoch = 2
-args.split = 7
+args.split = 6
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -273,9 +233,53 @@ partition = {'train': trainset, 'val': valset, 'test': testset}
 # 10년만기 미국 국채
 # 'BTC-USD' : 비트코인 암호화폐
 # 'ETH-USD' : 이더리움 암호화폐
+import time
+import pandas_datareader.data as pdr
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_percentage_error
+import datetime
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import csv
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
+a=[1,2,3,4,5,6,7,8,9,0,2,3,4]
+print(len(a)/10)
 
 
+class CV_Data_Spliter:
+    def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
+        self.symbol = symbol
+        self.n_splits = n_splits
+        self.start = datetime.datetime(*data_start)
+        self.end = datetime.datetime(*data_end)
+        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.test_size = len(self.data)/10
+        self.gap = gap
+        print(self.data.isna().sum())
 
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits = self.n_splits, test_size = self.test_size)
+
+    def ts_cv_List(self):
+        list = []
+        for train_index, test_index in self.tscv.split(self.data):
+            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
+            list.append((X_train, X_test))
+        return list
+
+    def test_size(self):
+        return self.test_size
+
+    def __len__(self):
+        return self.n_splits
+
+    def __getitem__(self, item):
+        datalist = self.ts_cv_List()
+        return datalist[item]
 
 
 
@@ -314,26 +318,33 @@ for i in model_list:
             data_start = (2011, 1, 1)
             data_end = (2020, 12, 31)
 
-        splitted_test_train = CV_Data_Spliter(args.symbol,data_start,data_end,n_splits=args.split,test_size=300)
+        splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
 
-        test_value_list = []
+        test_metric_list = []
+        test_metric2_list = []
+        test_metric3_list = []
         for iteration_n in range(args.split):
             args.iteration = iteration_n
             train_data, test_data = splitted_test_train[args.iteration][0], splitted_test_train[args.iteration][1]
-            splitted_train_val = CV_train_Spliter(train_data,args.symbol,test_size=300)
-            train_data, val_data = splitted_train_val[args.iteration][0], splitted_train_val[args.iteration][1]
+            test_size = splitted_test_train.test_size
+            print(train_data)
+            splitted_train_val = CV_train_Spliter(train_data,args.symbol,test_size=test_size)
+            train_data, val_data = splitted_train_val[1][0], splitted_train_val[1][1]
 
-            trainset = StockDataset(train_data, args.x_frames, args.y_frames)
-            valset   = StockDataset(val_data, args.x_frames, args.y_frames)
-            testset  = StockDataset(test_data, args.x_frames, args.y_frames)
+            trainset = StockDatasetCV(train_data, args.x_frames, args.y_frames)
+            valset   = StockDatasetCV(val_data, args.x_frames, args.y_frames)
+            testset  = StockDatasetCV(test_data, args.x_frames, args.y_frames)
             partition = {'train': trainset, 'val': valset, 'test': testset}
 
             args.innate_path = args.new_file_path + '\\' + str(args.iteration) +'_iter' ## 내부 파일경로
             os.makedirs(args.innate_path)
             print(args)
 
+
             setting, result = experiment(partition, deepcopy(args))
-            test_value_list.append(result['test_loss'])
+            test_metric_list.append(result['test_loss_metric'])
+            test_metric2_list.append(result['test_loss_metric2'])
+            test_metric3_list.append(result['test_loss_metric3'])
 
             ## 그림
             fig = plt.figure()
@@ -350,46 +361,19 @@ for i in model_list:
             ## 지정한 모델과, 지정한 데이터셋에 대한 결과가 저장되게된다.
             ## 지금 하려고 하는것은 result directory에 modek 마다, dataset 마다 iteration  원하는 데이터셋에
             #save_exp_result(setting, result)
-        avg_test_value = sum(test_value_list)/len(test_value_list)
-        std_test_value = np.std(test_value_list)
+        avg_test_metric  = sum(test_metric_list) / len(test_metric_list)
+        avg_test_metric2 = sum(test_metric2_list) / len(test_metric2_list)
+        avg_test_metric3 = sum(test_metric3_list) / len(test_metric3_list)
+
+        std_test_metric  = np.std(test_metric_list)
+        std_test_metric2 = np.std(test_metric2_list)
+        std_test_metric3 = np.std(test_metric3_list)
         with open(args.new_file_path + '\\' + 'result_t.txt', 'w') as f:
-            print('avg: {}, std :{}'.format(avg_test_value, std_test_value), file=f)
-        print('{}_{} 30 avg_test_value_list : {}'.format(model_name,args.symbol ,avg_test_value))
-
-## 실험결과 load
-df = load_exp_result('exp1_lr-ac')
-df.columns
-
-
-parameters = {'xtick.labelsize': 15,
-          'ytick.labelsize': 15}
-plt.rcParams.update(parameters)
-
-plt.plot(df[["train_losses"]].values[0][0])
-plt.plot(df[["val_losses"]].values[0][0])
-plt.legend(['train_losses', 'val_losses'],fontsize=15)
-plt.xlabel('epoch',fontsize=15)
-plt.ylabel('loss',fontsize=15)
-plt.grid()
+            print('metric \n avg: {}, std : {}\n'.format(avg_test_metric, std_test_metric), file=f)
+            print('metric2 \n avg: {}, std : {}\n'.format(avg_test_metric2, std_test_metric2), file=f)
+            print('metric3 \n avg: {}, std : {}\n'.format(avg_test_metric3, std_test_metric3), file=f)
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol ,avg_test_metric))
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric2))
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric3))
 
 
-import os
-os.getcwd()
-os.chdir('./LSTM')
-os.chdir('C:\\Users\\lee\\PycharmProjects')
-
-
-
-data = LSTMMD.StockDataset('GC=F', 10, 1, (2000, 1, 1), (2020, 12, 31))
-
-data_list = []
-for i in range(len(data)):
-    data_list.append(data[i][1][0][0])
-
-df = pd.DataFrame(data_list)
-
-parameters = {'xtick.labelsize': 15,
-          'ytick.labelsize': 15}
-plt.rcParams.update(parameters)
-
-plt.plot(df)

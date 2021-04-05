@@ -2,6 +2,81 @@
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
+
+# manage experiment
+import hashlib
+import json ## 파일로 저장하는 dictionary
+from os import listdir
+from os.path import isfile, join
+import pandas as pd
+
+
+def save_exp_result(setting, result):
+    exp_name = setting['exp_name']
+    del setting['epoch']   ## epoch이 바뀌어도 다른 파일이 생기지 않도록 하는 코드(hash를 만들 때 고려가 안되도록)
+
+    hash_key = hashlib.sha1(str(setting).encode()).hexdigest()[:6]
+    filename = './results/{}-{}.json'.format(exp_name, hash_key)
+    result.update(setting)     ## result라는 dictionary에 실험결과와함께 실험 setting도 저장하고싶기때문에 dic+dic >>.update를 사용
+    with open(filename, 'w') as f:    ## 이렇게하면 저장이 끝남 ('w'는 쓰기모드이다, 'r' : 읽기모드)
+        json.dump(result, f)
+
+## linux 같은 terminal 이었으면 폴더에 들어가서 text.json이 저장이 되어 있었어야함
+
+def load_exp_result(exp_name):
+    dir_path = 'results'
+    filenames = [f for f in listdir(dir_path) if isfile(join(dir_path, f)) if '.json' in f]
+    list_result = []
+    for filename in filenames:
+        if exp_name in filename:
+            with open(join(dir_path, filename), 'r') as infile:
+                results = json.load(infile)
+                list_result.append(results)
+    df = pd.DataFrame(list_result)  # .drop(columns=[])
+    return df
+
+
+
+
+
+## 실험결과 load
+df = load_exp_result('exp1_lr-ac')
+df.columns
+
+
+parameters = {'xtick.labelsize': 15,
+          'ytick.labelsize': 15}
+plt.rcParams.update(parameters)
+
+plt.plot(df[["train_losses"]].values[0][0])
+plt.plot(df[["val_losses"]].values[0][0])
+plt.legend(['train_losses', 'val_losses'],fontsize=15)
+plt.xlabel('epoch',fontsize=15)
+plt.ylabel('loss',fontsize=15)
+plt.grid()
+
+
+import os
+os.getcwd()
+os.chdir('./LSTM')
+os.chdir('C:\\Users\\lee\\PycharmProjects')
+
+
+
+data = LSTMMD.StockDataset('GC=F', 10, 1, (2000, 1, 1), (2020, 12, 31))
+
+data_list = []
+for i in range(len(data)):
+    data_list.append(data[i][1][0][0])
+
+df = pd.DataFrame(data_list)
+
+parameters = {'xtick.labelsize': 15,
+          'ytick.labelsize': 15}
+plt.rcParams.update(parameters)
+
+plt.plot(df)
+
 class dummyset(Dataset):
     def __init__(self, num_data):
         self.x = np.array(list(range(num_data*2))).reshape(-1, 2)
