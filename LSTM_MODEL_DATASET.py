@@ -51,7 +51,6 @@ def metric3(y_pred, y_true):
 
 
 
-
 class CV_Data_Spliter:
     def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
         self.symbol = symbol
@@ -67,8 +66,8 @@ class CV_Data_Spliter:
 
     def ts_cv_List(self):
         list = []
-        for train_index, test_index in self.tscv.split(self.data):
-            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
+        for train_index, test_index in self.tscv.split(self.normed_data):
+            X_train, X_test = self.normed_data.iloc[train_index], self.normed_data.iloc[test_index]
             list.append((X_train, X_test))
         return list
 
@@ -79,6 +78,10 @@ class CV_Data_Spliter:
         return self.n_splits
 
     def __getitem__(self, item):
+        data = self.data[['Close']]
+        data_max,data_min = max(data['Close']), min(data['Close'])
+        normal = (data - data_min) / (data_max - data_min)
+        self.normed_data = normal
         datalist = self.ts_cv_List()
         return datalist[item]
 
@@ -95,7 +98,7 @@ class CV_train_Spliter:
     def ts_cv_List(self):
         list = []
         for train_index, test_index in self.tscv.split(self.data):
-            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index,:]
+            X_train, X_test = self.data.iloc[train_index], self.data.iloc[test_index]
             list.append((X_train, X_test))
         return list
 
@@ -121,11 +124,11 @@ class StockDatasetCV(Dataset):
     ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
     def __getitem__(self, idx):
         idx += self.x_frames
-        data = self.data.iloc[idx - self.x_frames:idx + self.y_frames]
+        data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
         #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
-        data = data[['Close']]
-        ## nomalization
-        data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
+        #data = data[['Close']]
+        ## log nomalization
+        # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
         data = data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
         ## x와 y 기준으로 split
         X = data[:self.x_frames]
@@ -299,7 +302,7 @@ class RNN(nn.Module):
         self.regressor = self.make_regressor()
 
     def init_hidden(self):
-        return torch.zeros(self.num_layers, self.batch_size, self.hidden_dim,requires_grad=True)
+        return torch.zeros(self.num_layers, self.batch_size, self.hidden_dim, requires_grad=True)
 
     def make_regressor(self): # 간단한 MLP를 만드는 함수
         layers = []

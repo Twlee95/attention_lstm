@@ -1,5 +1,5 @@
 import sys
-sys.path.append('C:\\Users\\lee\\PycharmProjects\\LSTM')
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
 import time
 import torch
 import torch.nn as nn
@@ -17,6 +17,8 @@ from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
 from LSTM_MODEL_DATASET import CV_Data_Spliter as CV_Data_Spliter
 from LSTM_MODEL_DATASET import CV_train_Spliter as CV_train_Spliter
 import os
+os.getcwd()
+os.chdir('C:\\Users\\leete\\PycharmProjects\\LSTM')
 
 
 def train(model, partition, optimizer, loss_fn, args):
@@ -182,7 +184,7 @@ args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ====== Data Loading ====== #
 args.symbol = '^KQ11'
 args.batch_size = 128
-args.x_frames = 7
+args.x_frames = 20
 args.y_frames = 1
 args.model = LSTMMD.RNN
 
@@ -199,14 +201,14 @@ args.use_bn = True
 # ====== Optimizer & Training ====== #
 args.optim = 'RMSprop'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
-args.epoch = 2
+args.epoch = 20
 args.split = 8
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
-trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
-valset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2013-01-01', '2016-12-31')
-testset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2017-01-01', '2020-12-31')
-partition = {'train': trainset, 'val': valset, 'test': testset}
+#trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
+#valset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2013-01-01', '2016-12-31')
+#testset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2017-01-01', '2020-12-31')
+#partition = {'train': trainset, 'val': valset, 'test': testset}
 
 
 # '^KS11' : KOSPI
@@ -236,9 +238,7 @@ model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 data_list = ['^KS11', '^KQ11','^IXIC','^GSPC','^DJI','^HSI',
              '^N225','^GDAXI','^FCHI','^IBEX','^TWII','^AEX',
              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
-model_list = [LSTMMD.RNN]
-data_list = ['^KS11', '^KQ11']
-save_file_path = 'C:\\Users\\lee\\PycharmProjects\\LSTM\\results'
+save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\results'
 for i in model_list:
     setattr(args, 'model', i)
     for j in data_list:

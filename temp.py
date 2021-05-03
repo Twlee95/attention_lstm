@@ -347,3 +347,11 @@ for train_index, test_index in tscv.split(X):
 # TRAIN: [0 1 2 3] TEST: [6 7]
 # TRAIN: [0 1 2 3 4 5] TEST: [8 9]
 # TRAIN: [0 1 2 3 4 5 6 7] TEST: [10 11]
+
+
+import pandas as pd
+ar = np.array([[1,2],
+               [3,4],
+               [5,6]])
+df = pd.DataFrame(ar,columns=['a','b'])
+max(df['a'])
