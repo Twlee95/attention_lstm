@@ -58,7 +58,7 @@ class CV_Data_Spliter:
         self.start = datetime.datetime(*data_start)
         self.end = datetime.datetime(*data_end)
         self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
-        self.test_size = len(self.data)//10
+        self.test_size = len(self.data)//10-1
         self.gap = gap
         print(self.data.isna().sum())
 
@@ -66,22 +66,26 @@ class CV_Data_Spliter:
 
     def ts_cv_List(self):
         list = []
-        for train_index, test_index in self.tscv.split(self.normed_data):
-            X_train, X_test = self.normed_data.iloc[train_index], self.normed_data.iloc[test_index]
+        for train_index, test_index in self.tscv.split(self.data):
+            X_train, X_test = self.data.iloc[train_index,:], self.data.iloc[test_index,:]
             list.append((X_train, X_test))
         return list
 
     def test_size(self):
         return self.test_size
 
+    def entire_data(self):
+        return self.chart_data
+
     def __len__(self):
         return self.n_splits
 
     def __getitem__(self, item):
-        data = self.data[['Close']]
-        data_max,data_min = max(data['Close']), min(data['Close'])
-        normal = (data - data_min) / (data_max - data_min)
-        self.normed_data = normal
+        # data = self.data['Close']  ## time series data를 그대로 가져가기 위해서는 괄호를 한번 넣어야한다.
+        # self.chart_data = self.data['Close']
+        # data_max, data_min = max(data), min(data)
+        # normal = (data - data_min) / (data_max - data_min)
+        # self.normed_data = normal
         datalist = self.ts_cv_List()
         return datalist[item]
 
@@ -98,7 +102,7 @@ class CV_train_Spliter:
     def ts_cv_List(self):
         list = []
         for train_index, test_index in self.tscv.split(self.data):
-            X_train, X_test = self.data.iloc[train_index], self.data.iloc[test_index]
+            X_train, X_test = self.data.iloc[train_index,:], self.data.iloc[test_index,:]
             list.append((X_train, X_test))
         return list
 
@@ -107,10 +111,9 @@ class CV_train_Spliter:
         return datalist[item]
 
 
-
 class StockDatasetCV(Dataset):
 
-    def __init__(self,data , x_frames, y_frames):
+    def __init__(self, data, x_frames, y_frames):
         self.x_frames = x_frames
         self.y_frames = y_frames
         self.data = data
@@ -126,15 +129,48 @@ class StockDatasetCV(Dataset):
         idx += self.x_frames
         data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
         #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
-        #data = data[['Close']]
+        data = data['Close']
         ## log nomalization
         # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
-        data = data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
+        ## min max normalization
+        normed_data = (data-min(data))/(max(data)-min(data))
+        data = normed_data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
         ## x와 y 기준으로 split
         X = data[:self.x_frames]
         y = data[self.x_frames:]
 
         return X, y
+
+
+
+#
+# class StockDatasetCV(Dataset):
+#
+#     def __init__(self,data , x_frames, y_frames):
+#         self.x_frames = x_frames
+#         self.y_frames = y_frames
+#         self.data = data
+#         print(self.data.isna().sum())
+#
+#     ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
+#     def __len__(self):
+#         return len(self.data) - (self.x_frames + self.y_frames) + 1
+#
+#     ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
+#     ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
+#     def __getitem__(self, idx):
+#         idx += self.x_frames
+#         data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
+#         #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
+#         #data = data[['Close']]
+#         ## log nomalization
+#         # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
+#         data = data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
+#         ## x와 y 기준으로 split
+#         X = data[:self.x_frames]
+#         y = data[self.x_frames:]
+#
+#         return X, y
 
 
 class StockDataset(Dataset):
@@ -282,6 +318,7 @@ class csvStockDataset(Dataset):
 
         return X, y
 
+
 class RNN(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn):
@@ -297,19 +334,19 @@ class RNN(nn.Module):
 
         ## 파이토치에 있는 lstm모듈
         ## output dim 은 self.regressor에서 사용됨
-        self.RNN = nn.RNN(input_size=self.input_dim, hidden_size= self.hidden_dim, num_layers = self.num_layers, batch_first=True)
+        self.RNN = nn.RNN(input_size=self.input_dim, hidden_size=self.hidden_dim, num_layers=self.num_layers)
         self.hidden = self.init_hidden()
         self.regressor = self.make_regressor()
 
     def init_hidden(self):
         return torch.zeros(self.num_layers, self.batch_size, self.hidden_dim, requires_grad=True)
 
-    def make_regressor(self): # 간단한 MLP를 만드는 함수
+    def make_regressor(self):  # 간단한 MLP를 만드는 함수
         layers = []
         if self.use_bn:
             layers.append(nn.BatchNorm1d(self.hidden_dim))  ##  nn.BatchNorm1d
-        layers.append(nn.Dropout(self.dropout))    ##  nn.Dropout
-        #print('dropout layers: {}'.format(layers))
+        layers.append(nn.Dropout(self.dropout))  ##  nn.Dropout
+        # print('dropout layers: {}'.format(layers))
 
         ## hidden dim을 outputdim으로 바꿔주는 MLP
         # layers.append(nn.Linear(self.hidden_dim, self.hidden_dim // 2))
@@ -318,9 +355,9 @@ class RNN(nn.Module):
         # #print('ReLU layers: {}'.format(layers))
         # layers.append(nn.Linear(self.hidden_dim // 2, self.output_dim)) # 여기서 output dim이 사용됨
         layers.append(nn.Linear(self.hidden_dim, self.output_dim))
-        #print('last Linear layers: {}'.format(layers))
+        # print('last Linear layers: {}'.format(layers))
         regressor = nn.Sequential(*layers)
-        #print('regressor layers: {}'.format(regressor))
+        # print('regressor layers: {}'.format(regressor))
         return regressor
 
     def forward(self, x):
@@ -328,18 +365,15 @@ class RNN(nn.Module):
         # self.hidden 각각의 layer의 모든 hidden state 를 갖고있음
 
         ## LSTM의 hidden state에는 tuple로 cell state포함, 0번째는 hidden state tensor, 1번째는 cell state
-
         RNN_out, self.hidden = self.RNN(x)
-        # print('RNN_out : {}, RNN_out shape : {}'.format(RNN_out, RNN_out.shape))
-        # print('self.hidden : {}, self.hidden shape : {}'.format(self.hidden, self.hidden.shape))
+
         ## lstm_out : 각 time step에서의 lstm 모델의 output 값
         ## lstm_out[-1] : 맨마지막의 아웃풋 값으로 그 다음을 예측하고싶은 것이기 때문에 -1을 해줌
-        y_pred = self.regressor(RNN_out[-1].view(self.batch_size, -1)) ## self.batch size로 reshape해 regressor에 대입
-        # print('rnn_out[-1]: {},rnn_out[-1] shape : {}'.format(RNN_out[-1], RNN_out[-1].shape))
-        # print('rnn_out[-1].view(self.batch_size, -1) : {}, rnn_out[-1].view(self.batch_size, -1) shape : {}'.format(RNN_out[-1].view(self.batch_size, -1), RNN_out[-1].view(self.batch_size, -1).shape))
-        # print('rnn y_pred: {}, rnn y_pred shape : {}'.format(y_pred, y_pred.shape))
+        y_pred = self.regressor(RNN_out[-1].reshape(self.batch_size, -1))  ## self.batch size로 reshape해 regressor에 대입
 
         return y_pred
+
+
 class LSTM(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn):
@@ -406,7 +440,7 @@ class GRU(nn.Module):
 
         ## 파이토치에 있는 lstm모듈
         ## output dim 은 self.regressor에서 사용됨
-        self.GRU = nn.GRU(input_size=self.input_dim, hidden_size= self.hidden_dim, num_layers = self.num_layers, batch_first=True)
+        self.GRU = nn.GRU(input_size=self.input_dim, hidden_size= self.hidden_dim, num_layers = self.num_layers)
         self.hidden = self.init_hidden()
         self.regressor = self.make_regressor()
 

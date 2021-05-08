@@ -354,4 +354,8 @@ ar = np.array([[1,2],
                [3,4],
                [5,6]])
 df = pd.DataFrame(ar,columns=['a','b'])
-max(df['a'])
+
+c = df['a']
+d = df[['a']]
+type(c)
+type(d)
