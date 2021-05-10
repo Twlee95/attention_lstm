@@ -348,11 +348,14 @@ for train_index, test_index in tscv.split(X):
 # TRAIN: [0 1 2 3 4 5] TEST: [8 9]
 # TRAIN: [0 1 2 3 4 5 6 7] TEST: [10 11]
 
-
+import numpy as np
 import pandas as pd
 ar = np.array([[1,2],
                [3,4],
                [5,6]])
+dff = pd.DataFrame(ar)
+
+
 df = pd.DataFrame(ar,columns=['a','b'])
 
 c = df['a']

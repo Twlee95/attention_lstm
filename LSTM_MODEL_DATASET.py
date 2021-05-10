@@ -58,16 +58,17 @@ class CV_Data_Spliter:
         self.start = datetime.datetime(*data_start)
         self.end = datetime.datetime(*data_end)
         self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.chart_data = self.data
         self.test_size = len(self.data)//10-1
         self.gap = gap
         print(self.data.isna().sum())
 
-        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits = self.n_splits, test_size = self.test_size)
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=self.n_splits, test_size=self.test_size)
 
     def ts_cv_List(self):
         list = []
         for train_index, test_index in self.tscv.split(self.data):
-            X_train, X_test = self.data.iloc[train_index,:], self.data.iloc[test_index,:]
+            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index, :]
             list.append((X_train, X_test))
         return list
 
@@ -91,7 +92,7 @@ class CV_Data_Spliter:
 
 
 class CV_train_Spliter:
-    def __init__(self,data, symbol,test_size,gap=0):
+    def __init__(self, data, symbol, test_size, gap=0):
         self.symbol = symbol
         self.data = data
         self.test_size = test_size
@@ -100,50 +101,20 @@ class CV_train_Spliter:
         self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=2, test_size=self.test_size)
 
     def ts_cv_List(self):
-        list = []
+        list= []
         for train_index, test_index in self.tscv.split(self.data):
-            X_train, X_test = self.data.iloc[train_index,:], self.data.iloc[test_index,:]
+            X_train, X_test = self.data.iloc[train_index, :], self.data.iloc[test_index, :]
             list.append((X_train, X_test))
         return list
 
     def __getitem__(self, item):
-        datalist = self.ts_cv_List()
+        datalist= self.ts_cv_List()
         return datalist[item]
 
 
-class StockDatasetCV(Dataset):
-
-    def __init__(self, data, x_frames, y_frames):
-        self.x_frames = x_frames
-        self.y_frames = y_frames
-        self.data = data
-        print(self.data.isna().sum())
-
-    ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
-    def __len__(self):
-        return len(self.data) - (self.x_frames + self.y_frames) + 1
-
-    ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
-    ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
-    def __getitem__(self, idx):
-        idx += self.x_frames
-        data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
-        #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
-        data = data['Close']
-        ## log nomalization
-        # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
-        ## min max normalization
-        normed_data = (data-min(data))/(max(data)-min(data))
-        data = normed_data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
-        ## x와 y 기준으로 split
-        X = data[:self.x_frames]
-        y = data[self.x_frames:]
-
-        return X, y
 
 
 
-#
 # class StockDatasetCV(Dataset):
 #
 #     def __init__(self,data , x_frames, y_frames):
@@ -306,8 +277,8 @@ class csvStockDataset(Dataset):
         data = self.data.iloc[idx - self.x_frames:idx + self.y_frames]
         #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
         ## nomalization
-        data = data.astype({'종가':'float'})
-        data = data.loc[:,'종가']
+        data = data.astype({'종가': 'float'})
+        data = data.loc[:, '종가']
 
         data = pd.DataFrame(data)
         data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
@@ -375,14 +346,12 @@ class RNN(nn.Module):
 
 
 class LSTM(nn.Module):
-
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn):
         super(LSTM, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.num_layers = num_layers
-
         self.batch_size = batch_size
         self.dropout = dropout
         self.use_bn = use_bn
@@ -415,7 +384,6 @@ class LSTM(nn.Module):
     def forward(self, x):
         # 새로 opdate 된 self.hidden과 lstm_out을 return 해줌
         # self.hidden 각각의 layer의 모든 hidden state 를 갖고있음
-
         ## LSTM의 hidden state에는 tuple로 cell state포함, 0번째는 hidden state tensor, 1번째는 cell state
         lstm_out, self.hidden = self.lstm(x, self.hidden)
         ## lstm_out : 각 time step에서의 lstm 모델의 output 값
@@ -433,7 +401,6 @@ class GRU(nn.Module):
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.num_layers = num_layers
-
         self.batch_size = batch_size
         self.dropout = dropout
         self.use_bn = use_bn
@@ -445,7 +412,7 @@ class GRU(nn.Module):
         self.regressor = self.make_regressor()
 
     def init_hidden(self):
-        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim,requires_grad=True))
+        return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim, requires_grad=True))
 
     def make_regressor(self): # 간단한 MLP를 만드는 함수
         layers = []

@@ -1,4 +1,5 @@
 import sys
+import pandas as pd
 sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
 import time
 import torch
@@ -13,7 +14,7 @@ import LSTM_MODEL_DATASET as LSTMMD
 from LSTM_MODEL_DATASET import metric1 as metric1
 from LSTM_MODEL_DATASET import metric2 as metric2
 from LSTM_MODEL_DATASET import metric3 as metric3
-from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
+#from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
 from LSTM_MODEL_DATASET import CV_Data_Spliter as CV_Data_Spliter
 from LSTM_MODEL_DATASET import CV_train_Spliter as CV_train_Spliter
 import os
@@ -23,14 +24,16 @@ import csv
 def train(model, partition, optimizer, loss_fn, args):
     trainloader = DataLoader(partition['train'],    ## DataLoader는 dataset에서 불러온 값으로 랜덤으로 배치를 만들어줌
                              batch_size=args.batch_size,
-                             shuffle=True, drop_last=True)
+                             shuffle=False, drop_last=True)
     model.train()
     model.zero_grad()
     optimizer.zero_grad()
 
+    not_used_data_len = len(partition['train']) % args.batch_size
     train_loss = 0.0
     y_pred_graph = []
-    for i, (X, y) in enumerate(trainloader):
+    for i, (X, y, min, max) in enumerate(trainloader):
+
         ## (batch size, sequence length, input dim)
         ## x = (10, n, 6) >> x는 n일간의 input
         ## y= (10, m, 1) or (10, m)  >> y는 m일간의 종가를 동시에 예측
@@ -47,8 +50,14 @@ def train(model, partition, optimizer, loss_fn, args):
         model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
         y_pred = model(X)
-        y_pred_graph.append(y_pred)
-        print('train y_pred: {}, y_pred TYPE : {}'.format(y_pred,type(y_pred)))
+        # print("y_pred :{}".format(y_pred))
+        # print("y_pred size :{}".format(y_pred.size()))
+        # print("max :{}".format(max))
+        # print("max size :{}".format(max.size()))
+
+        predicted_raw = y_pred.squeeze() * (max - min) + min
+        y_pred_graph = y_pred_graph + predicted_raw.tolist()
+
         loss = loss_fn(y_pred.view(-1), y_true.view(-1)) # .view(-1)은 1열로 줄세운것
         loss.backward()  ## gradient 계산
         optimizer.step() ## parameter를 update 해줌 (.backward() 연산이 시행된다면(기울기 계산단계가 지나가면))
@@ -56,18 +65,19 @@ def train(model, partition, optimizer, loss_fn, args):
         train_loss += loss.item()   ## item()은 loss의 스칼라값을 칭하기때문에 cpu로 다시 넘겨줄 필요가 없다.
 
     train_loss = train_loss / len(trainloader)
-    return model, train_loss, y_pred_graph
+    return model, train_loss, y_pred_graph,not_used_data_len
 
 
 def validate(model, partition, loss_fn, args):
     valloader = DataLoader(partition['val'],
                            batch_size=args.batch_size,
                            shuffle=False, drop_last=True)
+    not_used_data_len = len(partition['val']) % args.batch_size
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
         y_pred_graph = []
-        for i, (X, y) in enumerate(valloader):
+        for i, (X, y, min, max) in enumerate(valloader):
 
             X = X.transpose(0, 1).unsqueeze(-1).float().to(args.device)
             #X = X.unsqueeze(-1).float().to(args.device)
@@ -75,26 +85,30 @@ def validate(model, partition, loss_fn, args):
             model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
             y_pred = model(X)
-            y_pred_graph.append(y_pred)
+            predicted_raw = y_pred.squeeze() * (max - min) + min
+            y_pred_graph = y_pred_graph + predicted_raw.tolist()
+
             # print('validate y_pred: {}, y_pred.shape : {}'. format(y_pred, y_pred.shape))
             loss = loss_fn(y_pred.view(-1), y_true.view(-1))
 
             val_loss += loss.item()
 
     val_loss = val_loss / len(valloader) ## 한 배치마다의 로스의 평균을 냄
-    return val_loss,y_pred_graph    ## 그결과값이 한 에폭마다의 LOSS
+    return val_loss, y_pred_graph, not_used_data_len   ## 그결과값이 한 에폭마다의 LOSS
 
 def test(model, partition, args):
     testloader = DataLoader(partition['test'],
                            batch_size=args.batch_size,
                            shuffle=False, drop_last=True)
+    not_used_data_len = len(partition['test']) % args.batch_size
+
     model.eval()
     test_loss_metric1 = 0.0
     test_loss_metric2 = 0.0
     test_loss_metric3 = 0.0
     with torch.no_grad():
         y_pred_graph = []
-        for i, (X, y) in enumerate(testloader):
+        for i, (X, y, min, max) in enumerate(testloader):
 
             X = X.transpose(0, 1).unsqueeze(-1).float().to(args.device)
             #X = X.unsqueeze(-1).float().to(args.device)
@@ -102,7 +116,9 @@ def test(model, partition, args):
             model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
             y_pred = model(X)
-            y_pred_graph.append(y_pred)
+            predicted_raw = y_pred.squeeze() * (max - min) + min
+            y_pred_graph = y_pred_graph + predicted_raw.tolist()
+
             # print('test y_pred: {},shape : {}'.format(y_pred, y_pred.shape))
             # print('test y_pred: {},shape : {}'.format(y_true, y_true.shape))
             # print('test metric(y_pred, y_true): {},shape : {}'.format(metric(y_pred, y_true), metric(y_pred, y_true).shape))
@@ -115,7 +131,7 @@ def test(model, partition, args):
     test_loss_metric1 = test_loss_metric1 / len(testloader)
     test_loss_metric2 = test_loss_metric2 / len(testloader)
     test_loss_metric3 = test_loss_metric3 / len(testloader)
-    return test_loss_metric1, test_loss_metric2, test_loss_metric3,y_pred_graph
+    return test_loss_metric1, test_loss_metric2, test_loss_metric3, y_pred_graph, not_used_data_len
 
 
 def experiment(partition, args):
@@ -140,13 +156,13 @@ def experiment(partition, args):
     ## 우리는 지금 epoch 마다 모델을 저장해야 하기때문에 여기에 저장하는 기능을 넣어야함.
     ## 실제로 우리는 디렉토리를 만들어야함
     ## 모델마다의 디렉토리를 만들어야하는데
-
+    epoch_graph_list = []
     for epoch in range(args.epoch):  # loop over the dataset multiple times
         ts = time.time()
-        model, train_loss, graph1= train(model, partition, optimizer, loss_fn, args)
-        val_loss, graph2= validate(model, partition, loss_fn, args)
+        model, train_loss, graph1,unused_triain = train(model, partition, optimizer, loss_fn, args)
+        val_loss, graph2, unused_val = validate(model, partition, loss_fn, args)
         te = time.time()
-
+        epoch_graph_list.append([graph1,graph2])
         # ====== Add Epoch Data ====== # ## 나중에 그림그리는데 사용할것
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -155,13 +171,17 @@ def experiment(partition, args):
         torch.save(model.state_dict(), args.innate_path + '\\' + str(epoch) +'_epoch' + '.pt')
         print('Epoch {}, Loss(train/val) {:2.5f}/{:2.5f}. Took {:2.2f} sec, Iteration {}'
               .format(epoch, train_loss, val_loss, te - ts, args.iteration))
-    ## 여기서 구하는것은 val_losses에서 가장 값이 최대인 위치를 저장함
+
+    ## 여기서 구하는것은 val_losses에서 가장 값이 최소인 위치를 저장함
     site_val_losses = val_losses.index(min(val_losses)) ## 10 epoch일 경우 0번째~9번째 까지로 나옴
     model = args.model(args.input_dim, args.hid_dim, args.y_frames, args.n_layers, args.batch_size, args.dropout,args.use_bn)
     model.to(args.device)
     model.load_state_dict(torch.load(args.innate_path + '\\' + str(site_val_losses) +'_epoch' + '.pt'))
 
-    test_loss_metric1, test_loss_metric2, test_loss_metric3,graph3 = test(model, partition, args)
+    ## graph
+    train_val_graph = epoch_graph_list[site_val_losses]
+
+    test_loss_metric1, test_loss_metric2, test_loss_metric3, graph3, unused_test = test(model, partition, args)
     print('test_loss_metric1: {},\n test_loss_metric2: {}, \ntest_loss_metric3: {}'
           .format(test_loss_metric1, test_loss_metric2, test_loss_metric3))
 
@@ -175,6 +195,10 @@ def experiment(partition, args):
     result['test_loss_metric1'] = test_loss_metric1
     result['test_loss_metric2'] = test_loss_metric2
     result['test_loss_metric3'] = test_loss_metric3
+    result['train_val_graph'] = train_val_graph
+    result['test_graph'] = graph3
+    result['unused_data'] = [unused_triain,unused_val,unused_test]
+
     return vars(args), result      ## vars(args) 1: args에있는 attrubute들을 dictionary 형태로 보길 원한다면 vars 함
 
 
@@ -208,8 +232,8 @@ args.use_bn = True
 # ====== Optimizer & Training ====== #
 args.optim = 'Adam'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
-args.epoch = 2
-args.split = 2
+args.epoch = 4
+args.split = 6
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 #trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -239,7 +263,51 @@ args.split = 2
 # 'BTC-USD' : 비트코인 암호화폐
 # 'ETH-USD' : 이더리움 암호화폐
 
+import time
+import pandas_datareader.data as pdr
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_percentage_error
+import datetime
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import csv
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
 
+class StockDatasetCV(Dataset):
+
+    def __init__(self, data, x_frames, y_frames):
+        self.x_frames = x_frames
+        self.y_frames = y_frames
+        self.data = data
+        print(self.data.isna().sum())
+
+    ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
+    def __len__(self):
+        return len(self.data) - (self.x_frames + self.y_frames) + 1
+
+    ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
+    ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
+    def __getitem__(self, idx):
+        idx += self.x_frames
+        data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
+        #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
+        data = data['Close']
+        ## log nomalization
+        # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
+        ## min max normalization
+        min_data, max_data = min(data), max(data)
+        normed_data = (data-min(data))/(max(data)-min(data))
+        data = normed_data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
+        ## x와 y기준으로 split
+        X = data[:self.x_frames]
+        y = data[self.x_frames:]
+
+        return X, y, min_data, max_data
 
 
 # model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
@@ -248,7 +316,7 @@ args.split = 2
 #              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
 
 data_list = ['ETH-USD','^KS11']
-model_list = [LSTMMD.RNN]
+model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\results'
 
 with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', newline='') as f:
@@ -286,8 +354,9 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
                 data_end = (2020, 12, 31)
 
             splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
+            entire_data = splitted_test_train.entire_data()
 
-            args.series_Data =splitted_test_train.entire_data
+            args.series_Data = splitted_test_train.entire_data
             test_metric1_list = []
             test_metric2_list = []
             test_metric3_list = []
@@ -307,7 +376,6 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
                 os.makedirs(args.innate_path)
                 print(args)
 
-
                 setting, result = experiment(partition, deepcopy(args))
                 test_metric1_list.append(result['test_loss_metric1'])
                 test_metric2_list.append(result['test_loss_metric2'])
@@ -324,23 +392,67 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
                 plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_fig' + '.png')
                 plt.close(fig)
 
-                ## 이경우에
-                ## 지정한 모델과, 지정한 데이터셋에 대한 결과가 저장되게된다.
-                ## 지금 하려고 하는것은 result directory에 modek 마다, dataset 마다 iteration  원하는 데이터셋에
+                predicted_traing = result['train_val_graph'][0]
+                predicted_valg = result['train_val_graph'][1]
+                predicted_testg = result['test_graph']
+                entire_dataa = entire_data['Close'].values.tolist()
+
+                train_length = len(predicted_traing)
+                val_length = len(predicted_valg)
+                test_length = len(predicted_testg)
+                entire_length = len(entire_dataa)
+
+                unused_triain = result['unused_data'][0]
+                unused_val = result['unused_data'][1]
+                unused_test = result['unused_data'][2]
+
+                train_index = list(range(args.x_frames,args.x_frames+train_length))
+                val_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length))
+                test_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames+test_length))
+                entire_index = list(range(entire_length))
+
+                # train_graph = pd.DataFrame(predicted_traing,index=train_index)
+                # val_graph = pd.DataFrame(predicted_valg,index=val_index)
+                # test_graph = pd.DataFrame(predicted_testg,index=test_index)
+                # entire_graph = pd.DataFrame(entire_dataa,index=entire_index)
+
+                # train_graph = pd.DataFrame({"data" : np.array(predicted_traing),"index":train_index})
+                # val_graph = pd.DataFrame({"data" : np.array(predicted_valg),"index":val_index})
+                # test_graph = pd.DataFrame({"data" : np.array(predicted_testg),"index":test_index})
+                # entire_graph = pd.DataFrame({"data" : np.array(entire_dataa),"index":entire_index})
+
+                # train_graph.set_index('index', inplace=True)
+                # val_graph.set_index('index', inplace=True)
+                # test_graph.set_index('index', inplace=True)
+                # entire_graph.set_index('index', inplace=True)
+
+                fig2 = plt.figure()
+                plt.plot(entire_index, entire_dataa)
+                plt.plot(train_index, predicted_traing)
+                plt.plot(val_index, predicted_valg)
+                plt.plot(test_index, predicted_testg)
+                plt.legend(['raw_data', 'predicted_train', 'predicted_val','predicted_test'], fontsize=15)
+                plt.xlim(0, entire_length)
+                plt.xlabel('time', fontsize=15)
+                plt.ylabel('value', fontsize=15)
+                plt.grid()
+                plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_chart_fig' + '.png')
+                plt.close(fig2)
+
+
                 #save_exp_result(setting, result)
+
             avg_test_metric1 = sum(test_metric1_list) / len(test_metric1_list)
             avg_test_metric2 = sum(test_metric2_list) / len(test_metric2_list)
             avg_test_metric3 = sum(test_metric3_list) / len(test_metric3_list)
-
             std_test_metric1 = np.std(test_metric1_list)
             std_test_metric2 = np.std(test_metric2_list)
             std_test_metric3 = np.std(test_metric3_list)
 
-
+            #csv파일에 기록하기
             wr.writerow([str(args.model), args.symbol, avg_test_metric1, std_test_metric1,
                                                        avg_test_metric2, std_test_metric2,
                                                        avg_test_metric3, std_test_metric3])
-
 
             with open(args.new_file_path + '\\' + 'result_t.txt', 'w') as fd:
                 print('metric1 \n avg: {}, std : {}\n'.format(avg_test_metric1, std_test_metric1), file=fd)
