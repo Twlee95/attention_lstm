@@ -14,7 +14,7 @@ import LSTM_MODEL_DATASET as LSTMMD
 from LSTM_MODEL_DATASET import metric1 as metric1
 from LSTM_MODEL_DATASET import metric2 as metric2
 from LSTM_MODEL_DATASET import metric3 as metric3
-#from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
+from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
 from LSTM_MODEL_DATASET import CV_Data_Spliter as CV_Data_Spliter
 from LSTM_MODEL_DATASET import CV_train_Spliter as CV_train_Spliter
 import os
@@ -55,8 +55,8 @@ def train(model, partition, optimizer, loss_fn, args):
         # print("max :{}".format(max))
         # print("max size :{}".format(max.size()))
 
-        predicted_raw = y_pred.squeeze() * (max - min) + min
-        y_pred_graph = y_pred_graph + predicted_raw.tolist()
+        reformed_y_pred = y_pred.squeeze() * (max - min) + min
+        y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
         loss = loss_fn(y_pred.view(-1), y_true.view(-1)) # .view(-1)은 1열로 줄세운것
         loss.backward()  ## gradient 계산
@@ -85,8 +85,8 @@ def validate(model, partition, loss_fn, args):
             model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
             y_pred = model(X)
-            predicted_raw = y_pred.squeeze() * (max - min) + min
-            y_pred_graph = y_pred_graph + predicted_raw.tolist()
+            reformed_y_pred = y_pred.squeeze() * (max - min) + min
+            y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
             # print('validate y_pred: {}, y_pred.shape : {}'. format(y_pred, y_pred.shape))
             loss = loss_fn(y_pred.view(-1), y_true.view(-1))
@@ -116,17 +116,14 @@ def test(model, partition, args):
             model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
             y_pred = model(X)
-            predicted_raw = y_pred.squeeze() * (max - min) + min
-            y_pred_graph = y_pred_graph + predicted_raw.tolist()
+            reformed_y_pred = y_pred.squeeze() * (max - min) + min
+            reformed_y_true = y_true.squeeze() * (max - min) + min
+            y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
-            # print('test y_pred: {},shape : {}'.format(y_pred, y_pred.shape))
-            # print('test y_pred: {},shape : {}'.format(y_true, y_true.shape))
-            # print('test metric(y_pred, y_true): {},shape : {}'.format(metric(y_pred, y_true), metric(y_pred, y_true).shape))
-            # print('test metric(y_pred, y_true)[0]: {},shape : {}'.format(metric(y_pred, y_true)[0] ,metric(y_pred, y_true)[0].shape))
 
-            test_loss_metric1 += metric1(y_pred, y_true.squeeze())[0]
-            test_loss_metric2 += metric2(y_pred, y_true.squeeze())[0]
-            test_loss_metric3 += metric3(y_pred, y_true.squeeze())[0]
+            test_loss_metric1 += metric1(reformed_y_pred, reformed_y_true)
+            test_loss_metric2 += metric2(reformed_y_pred, reformed_y_true)
+            test_loss_metric3 += metric3(reformed_y_pred, reformed_y_true)
 
     test_loss_metric1 = test_loss_metric1 / len(testloader)
     test_loss_metric2 = test_loss_metric2 / len(testloader)
@@ -232,8 +229,8 @@ args.use_bn = True
 # ====== Optimizer & Training ====== #
 args.optim = 'Adam'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
-args.epoch = 4
-args.split = 6
+args.epoch = 2
+args.split = 4
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 #trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -263,51 +260,7 @@ args.split = 6
 # 'BTC-USD' : 비트코인 암호화폐
 # 'ETH-USD' : 이더리움 암호화폐
 
-import time
-import pandas_datareader.data as pdr
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_percentage_error
-import datetime
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
-import csv
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import TimeSeriesSplit
 
-class StockDatasetCV(Dataset):
-
-    def __init__(self, data, x_frames, y_frames):
-        self.x_frames = x_frames
-        self.y_frames = y_frames
-        self.data = data
-        print(self.data.isna().sum())
-
-    ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
-    def __len__(self):
-        return len(self.data) - (self.x_frames + self.y_frames) + 1
-
-    ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
-    ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
-    def __getitem__(self, idx):
-        idx += self.x_frames
-        data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
-        #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
-        data = data['Close']
-        ## log nomalization
-        # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
-        ## min max normalization
-        min_data, max_data = min(data), max(data)
-        normed_data = (data-min(data))/(max(data)-min(data))
-        data = normed_data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
-        ## x와 y기준으로 split
-        X = data[:self.x_frames]
-        y = data[self.x_frames:]
-
-        return X, y, min_data, max_data
 
 
 # model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
@@ -316,7 +269,10 @@ class StockDatasetCV(Dataset):
 #              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
 
 data_list = ['ETH-USD','^KS11']
+data_list = ['ETH-USD']
 model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
+model_list = [LSTMMD.RNN]
+
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\results'
 
 with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', newline='') as f:

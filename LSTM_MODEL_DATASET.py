@@ -12,32 +12,37 @@ import csv
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
-
+import math
 
 
 def metric1(y_pred, y_true):
-    perc_y_pred = np.exp(y_pred.cpu().detach().numpy())
-    perc_y_true = np.exp(y_true.cpu().detach().numpy())
+    perc_y_pred = y_pred.cpu().detach().numpy()
+    perc_y_true = y_true.cpu().detach().numpy()
+
     # mean_absolute_error : 차이의 절댓값을 loss function으로 사용
-    mae = mean_absolute_error(perc_y_true, perc_y_pred, multioutput='raw_values')
+    mae = mean_absolute_error(perc_y_true, perc_y_pred, multioutput='raw_values')[0]
+    print(mae)
     return mae
 
+
+
 def metric2(y_pred, y_true):
-    perc_y_pred = np.exp(y_pred.cpu().detach().numpy())
+    perc_y_pred = y_pred.cpu().detach().numpy()
     #print('perc_y_pred :{},perc_y_pred.shape :{}'.format(perc_y_pred,perc_y_pred.shape))
-    perc_y_true = np.exp(y_true.cpu().detach().numpy())
+    perc_y_true = y_true.cpu().detach().numpy()
     # mean_absolute_error : 차이의 절댓값을 loss function으로 사용
-    mse = mean_squared_error(perc_y_true, perc_y_pred, multioutput='raw_values')
+    mse = mean_squared_error(perc_y_true, perc_y_pred, multioutput='raw_values')[0]
+    rmse = math.sqrt(mse)
     # y_pred = np.array(y_pred)
     # y_true = np.array(y_true)
     # mse = mean_squared_error(y_pred, y_true, multioutput='raw_values')
-    return mse
+    return rmse
 
 def metric3(y_pred, y_true):
-    perc_y_pred = np.exp(y_pred.cpu().detach().numpy())
-    perc_y_true = np.exp(y_true.cpu().detach().numpy())
+    perc_y_pred = y_pred.cpu().detach().numpy()
+    perc_y_true = y_true.cpu().detach().numpy()
     # mean_absolute_error : 차이의 절댓값을 loss function으로 사용
-    mape = mean_absolute_percentage_error(perc_y_true, perc_y_pred, multioutput='raw_values')
+    mape = mean_absolute_percentage_error(perc_y_true, perc_y_pred, multioutput='raw_values')[0]
     return mape
 ## t+1 부터 t+5 까지 동시에 예측
 ## data preperation
@@ -112,6 +117,36 @@ class CV_train_Spliter:
         return datalist[item]
 
 
+class StockDatasetCV(Dataset):
+
+    def __init__(self, data, x_frames, y_frames):
+        self.x_frames = x_frames
+        self.y_frames = y_frames
+        self.data = data
+        print(self.data.isna().sum())
+
+    ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
+    def __len__(self):
+        return len(self.data) - (self.x_frames + self.y_frames) + 1
+
+    ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
+    ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
+    def __getitem__(self, idx):
+        idx += self.x_frames
+        data = pd.DataFrame(self.data).iloc[idx - self.x_frames:idx + self.y_frames]
+        #data = data[['High', 'Low', 'Open', 'Close', 'Adj Close', 'Volume']] ## 컬럼순서맞추기 위해 한것
+        data = data['Close']
+        ## log nomalization
+        # data = data.apply(lambda x: np.log(x + 1) - np.log(x[self.x_frames - 1] + 1))
+        ## min max normalization
+        min_data, max_data = min(data), max(data)
+        normed_data = (data-min(data))/(max(data)-min(data))
+        data = normed_data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
+        ## x와 y기준으로 split
+        X = data[:self.x_frames]
+        y = data[self.x_frames:]
+
+        return X, y, min_data, max_data
 
 
 
