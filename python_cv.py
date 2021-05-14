@@ -40,10 +40,13 @@ def train(model, partition, optimizer, loss_fn, args):
         ## lstm은 한 스텝별로 forward로 진행을 함
         ## (sequence length, batch size, input dim) >> 파이토치 default lstm은 첫번째 인자를 sequence length로 받음
         ## x : [n, 10, 6], y : [m, 10]
+
         X = X.transpose(0, 1).unsqueeze(-1).float().to(args.device) ## transpose는 seq length가 먼저 나와야 하기 때문에 0번째와 1번째를 swaping
         #X = X.unsqueeze(-1).float().to(args.device)
         y_true = y[:, :].float().to(args.device)  ## index-3은 종가를 의미(dataframe 상에서)
         #print(torch.max(X[:, :, 3]), torch.max(y_true))
+        print("X : {}, X shape: {}".format(X,X.size()))
+        print("y : {}, y shape: {}".format(y,y.size()))
 
         model.zero_grad()
         optimizer.zero_grad()

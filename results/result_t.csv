@@ -1,2 +1,0 @@
-model,stock,avg_test_metric1,std_test_metric1,avg_test_metric2,std_test_metric2,avg_test_metric3,std_test_metric3
-<class 'LSTM_MODEL_DATASET.RNN'>,ETH-USD,31.487549038001248,25.933898901703547,41.47271758458817,31.28463667777625,0.1199299258894769,0.05043786493359755
