@@ -54,8 +54,9 @@ def train(model, partition, optimizer, loss_fn, args):
         # print("y_pred size :{}".format(y_pred.size()))
         # print("max :{}".format(max))
         # print("max size :{}".format(max.size()))
-
+        print("args.data_max: {}".format(args.data_max))
         reformed_y_pred = y_pred.squeeze() * (args.data_max - args.data_min) + args.data_min
+
         y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
         loss = loss_fn(y_pred.view(-1), y_true.view(-1)) # .view(-1)은 1열로 줄세운것
@@ -330,9 +331,10 @@ class CV_Data_Spliter:
 #              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
 
 data_list = ['ETH-USD','^KS11','^IXIC','^GSPC','^DJI','^HSI','^N225','^GDAXI','^FCHI','^IBEX','^TWII','^AEX']
+data_list = ['ETH-USD']
 
 model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
-
+model_list = [LSTMMD.RNN]
 
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\entire_results'
 

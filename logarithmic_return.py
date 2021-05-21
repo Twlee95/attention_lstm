@@ -11,7 +11,7 @@ import sys
 for i in sys.path:
     print(i)
 
-sys.path.append('C:\\Users\\lee\\PycharmProjects\\LSTM')
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
 sys.path.remove('C:\\Users\\lee\\PycharmProjects\\LSTM')
 os.getcwd()
 os.chdir('C:\\Users\\lee\\PycharmProjects')
@@ -105,10 +105,31 @@ for key, value in result[4].items():
 
 # '^GSPC' : SNP 500 지수
 SNP_data = pdr.DataReader('^GSPC','yahoo', start, end)
+df = SNP_data['Close']
 SNP_df = pd.DataFrame(SNP_data.Close)
 trainset = LSTMMD.StockDataset('^GSPC', 7, 1, (2000, 1, 1), (2012, 12, 31))
 valset = LSTMMD.StockDataset('^GSPC', 7, 1, (2013, 1, 1), (2016, 12, 31))
 testset = LSTMMD.StockDataset('^GSPC', 7, 1, (2017, 1, 1), (2020, 12, 31))
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from statsmodels.tsa.seasonal import seasonal_decompose
+
+print(df)
+
+df.dropna(inplace=True)
+plt.plot(df)
+
+result = seasonal_decompose(df, model='additive',period=240)
+plt.rcParams['figure.figsize'] = [12, 8]
+result.plot()
+plt.show()
+
+
+
 print(len(SNP_df))
 print(len(trainset)+len(valset)+len(testset))
 print(len(trainset))

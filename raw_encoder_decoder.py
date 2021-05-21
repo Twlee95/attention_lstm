@@ -146,7 +146,7 @@ class lstm_seq2seq(nn.Module):
         # calculate number of batch iterations
         n_batches = int(input_tensor.shape[1] / batch_size)
 
-        with trange(n_epochs) as tr:
+        with range(n_epochs) as tr:
             for it in tr:
 
                 batch_loss = 0.

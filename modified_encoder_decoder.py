@@ -154,7 +154,7 @@ def metric3(y_pred, y_true):
 def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args):
     trainloader = DataLoader(partition['train'],    ## DataLoader는 dataset에서 불러온 값으로 랜덤으로 배치를 만들어줌
                              batch_size=args.batch_size,
-                             shuffle=True, drop_last=True)
+                             shuffle=False, drop_last=True)
     encoder.train()
     decoder.train()
     encoder.zero_grad()
@@ -264,8 +264,8 @@ def experiment(partition, args):
     loss_fn = nn.MSELoss()
     # loss_fn.to(args.device) ## gpu로 보내줌  간혹 loss에 따라 안되는 경우도 있음
     if args.optim == 'SGD':
-        enc_optimizer = optim.RMSprop(encoder.parameters(), lr=args.lr, weight_decay=args.l2)
-        dec_optimizer = optim.RMSprop(decoder.parameters(), lr=args.lr, weight_decay=args.l2)
+        enc_optimizer = optim.SGD(encoder.parameters(), lr=args.lr, weight_decay=args.l2)
+        dec_optimizer = optim.SGD(decoder.parameters(), lr=args.lr, weight_decay=args.l2)
     elif args.optim == 'RMSprop':
         enc_optimizer = optim.RMSprop(encoder.parameters(), lr=args.lr, weight_decay=args.l2)
         dec_optimizer = optim.RMSprop(decoder.parameters(), lr=args.lr, weight_decay=args.l2)
