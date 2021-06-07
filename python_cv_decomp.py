@@ -21,6 +21,51 @@ import os
 import csv
 
 
+class RNN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn):
+        super(RNN, self).__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        self.num_layers = num_layers
+
+        self.batch_size = batch_size
+        self.dropout = dropout
+        self.use_bn = use_bn
+
+        ## 파이토치에 있는 lstm모듈
+        ## output dim 은 self.regressor에서 사용됨
+        self.RNN = nn.RNN(input_size=self.input_dim, hidden_size=self.hidden_dim, num_layers=self.num_layers)
+        self.hidden = self.init_hidden()
+        self.regressor = self.make_regressor()
+
+    def init_hidden(self):
+        return torch.zeros(self.num_layers, self.batch_size, self.hidden_dim, requires_grad=True)
+
+    def make_regressor(self):  # 간단한 MLP를 만드는 함수
+        layers = []
+        if self.use_bn:
+            layers.append(nn.BatchNorm1d(self.hidden_dim))  ##  nn.BatchNorm1d
+        layers.append(nn.Dropout(self.dropout))  ##  nn.Dropout
+
+        layers.append(nn.Linear(self.hidden_dim, self.output_dim))
+        regressor = nn.Sequential(*layers)
+        return regressor
+
+    def forward(self, x):
+        # 새로 opdate 된 self.hidden과 lstm_out을 return 해줌
+        # self.hidden 각각의 layer의 모든 hidden state 를 갖고있음
+
+        ## LSTM의 hidden state에는 tuple로 cell state포함, 0번째는 hidden state tensor, 1번째는 cell state
+        RNN_out, self.hidden = self.RNN(x)
+        ## lstm_out : 각 time step에서의 lstm 모델의 output 값
+        ## lstm_out[-1] : 맨마지막의 아웃풋 값으로 그 다음을 예측하고싶은 것이기 때문에 -1을 해줌
+
+        y_pred = self.regressor(RNN_out[-1].reshape(self.batch_size, -1))  ## self.batch size로 reshape해 regressor에 대입
+
+        return y_pred
+
+
 def train(model, partition, optimizer, loss_fn, args):
     trainloader = DataLoader(partition['train'],    ## DataLoader는 dataset에서 불러온 값으로 랜덤으로 배치를 만들어줌
                              batch_size=args.batch_size,
@@ -32,7 +77,7 @@ def train(model, partition, optimizer, loss_fn, args):
     not_used_data_len = len(partition['train']) % args.batch_size
     train_loss = 0.0
     y_pred_graph = []
-    for i, (X, y, min, max) in enumerate(trainloader):
+    for i, (X, raw_y, min, max) in enumerate(trainloader):
 
         ## (batch size, sequence length, input dim)
         ## x = (10, n, 6) >> x는 n일간의 input
@@ -40,14 +85,10 @@ def train(model, partition, optimizer, loss_fn, args):
         ## lstm은 한 스텝별로 forward로 진행을 함
         ## (sequence length, batch size, input dim) >> 파이토치 default lstm은 첫번째 인자를 sequence length로 받음
         ## x : [n, 10, 6], y : [m, 10]
-        print(y.shape)
         X = X.transpose(0, 1).float().to(args.device) ## transpose는 seq length가 먼저 나와야 하기 때문에 0번째와 1번째를 swaping
         #X = X.unsqueeze(-1).float().to(args.device)
-        y_true = y[:, :].float().to(args.device)  ## index-3은 종가를 의미(dataframe 상에서)
+        y_true = raw_y[:, :].float().to(args.device)  ## index-3은 종가를 의미(dataframe 상에서)
         #print(torch.max(X[:, :, 3]), torch.max(y_true))
-
-        print(y_true.shape)
-
 
         model.zero_grad()
         optimizer.zero_grad()
@@ -55,10 +96,10 @@ def train(model, partition, optimizer, loss_fn, args):
 
         y_pred = model(X)
 
+        reformed_y_pred = y_pred.squeeze() * (max.squeeze() - min.squeeze()) + min.squeeze()
 
-
-        reformed_y_pred = y_pred.squeeze() * (max - min) + min
         y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
+
 
         loss = loss_fn(y_pred.view(-1), y_true.view(-1)) # .view(-1)은 1열로 줄세운것
         loss.backward()  ## gradient 계산
@@ -67,7 +108,7 @@ def train(model, partition, optimizer, loss_fn, args):
         train_loss += loss.item()   ## item()은 loss의 스칼라값을 칭하기때문에 cpu로 다시 넘겨줄 필요가 없다.
 
     train_loss = train_loss / len(trainloader)
-    return model, train_loss, y_pred_graph,not_used_data_len
+    return model, train_loss, y_pred_graph, not_used_data_len
 
 
 def validate(model, partition, loss_fn, args):
@@ -79,15 +120,14 @@ def validate(model, partition, loss_fn, args):
     val_loss = 0.0
     with torch.no_grad():
         y_pred_graph = []
-        for i, (X, y, min, max) in enumerate(valloader):
+        for i, (X, raw_y, min, max) in enumerate(valloader):
 
-            X = X.transpose(0, 1).unsqueeze(-1).float().to(args.device)
-            #X = X.unsqueeze(-1).float().to(args.device)
-            y_true = y[:, :].float().to(args.device)
+            X = X.transpose(0, 1).float().to(args.device)
+            y_true = raw_y[:, :].float().to(args.device)
             model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
             y_pred = model(X)
-            reformed_y_pred = y_pred.squeeze() * (max - min) + min
+            reformed_y_pred = y_pred.squeeze() * (max.squeeze() - min.squeeze()) + min.squeeze()
             y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
             # print('validate y_pred: {}, y_pred.shape : {}'. format(y_pred, y_pred.shape))
@@ -102,6 +142,7 @@ def test(model, partition, args):
     testloader = DataLoader(partition['test'],
                            batch_size=args.batch_size,
                            shuffle=False, drop_last=True)
+
     not_used_data_len = len(partition['test']) % args.batch_size
 
     model.eval()
@@ -110,16 +151,16 @@ def test(model, partition, args):
     test_loss_metric3 = 0.0
     with torch.no_grad():
         y_pred_graph = []
-        for i, (X, y, min, max) in enumerate(testloader):
+        for i, (X, raw_y, min, max) in enumerate(testloader):
 
-            X = X.transpose(0, 1).unsqueeze(-1).float().to(args.device)
+            X = X.transpose(0, 1).float().to(args.device)
             #X = X.unsqueeze(-1).float().to(args.device)
-            y_true = y[:, :].float().to(args.device)
+            y_true = raw_y[:, :].float().to(args.device)
             model.hidden = [hidden.to(args.device) for hidden in model.init_hidden()]
 
             y_pred = model(X)
-            reformed_y_pred = y_pred.squeeze() * (max - min) + min
-            reformed_y_true = y_true.squeeze() * (max - min) + min
+            reformed_y_pred = y_pred.squeeze() * (max.squeeze() - min.squeeze()) + min.squeeze()
+            reformed_y_true = y_true.squeeze() * (max.squeeze() - min.squeeze()) + min.squeeze()
             y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
 
@@ -219,7 +260,7 @@ args.y_frames = 1
 args.model = LSTMMD.RNN
 
 # ====== Model Capacity ===== #
-args.input_dim = 1
+args.input_dim = 3
 args.hid_dim = 10
 args.n_layers = 1
 
@@ -232,7 +273,7 @@ args.use_bn = True
 args.optim = 'Adam'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
 args.epoch = 2
-args.split = 4
+args.split = 2
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 #trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -261,8 +302,146 @@ args.split = 4
 # 10년만기 미국 국채
 # 'BTC-USD' : 비트코인 암호화폐
 # 'ETH-USD' : 이더리움 암호화폐
+import time
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+import csv
+import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
+import pandas_datareader.data as pdr
+import datetime
+from statsmodels.tsa.seasonal import STL
+import matplotlib.pyplot as plt
+import pandas as pd
+
+class CV_Data_Spliter:
+    def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
+        self.symbol = symbol
+        self.n_splits = n_splits
+        self.start = datetime.datetime(*data_start)
+        self.end = datetime.datetime(*data_end)
+        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.chart_data = self.data
+        self.test_size = len(self.data)//10-1
+        self.gap = gap
+        print(self.data.isna().sum())
+
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=self.n_splits, test_size=self.test_size)
+
+    def ts_cv_List(self,data):
+        list = []
+        for train_index, test_index in self.tscv.split(data):
+            X_train, X_test = data.iloc[train_index, :], data.iloc[test_index, :]
+            list.append((X_train, X_test))
+        return list
 
 
+    def test_size(self):
+        return self.test_size
+
+    def entire_data(self):
+        return self.chart_data
+
+    def __len__(self):
+        return self.n_splits
+
+    def __getitem__(self, item):
+        data = self.data
+        data_close = data[['Close']]
+
+        idx = pd.date_range("2010-01-01", freq="D", periods=len(data_close))
+        data_close = data_close.set_index(idx)
+        stl = STL(data_close).fit()
+
+        trend = stl.trend.array
+        seasonal = stl.seasonal.array
+        resid = stl.resid.array
+        stl_decomp_data = pd.DataFrame(np.array([trend, seasonal, resid]).T,columns=["trend","seasonal","resid"])
+        slpit_datalist = self.ts_cv_List(stl_decomp_data)
+
+        return slpit_datalist[item]
+
+
+class CV_raw_Data_Spliter:
+    def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
+        self.symbol = symbol
+        self.n_splits = n_splits
+        self.start = datetime.datetime(*data_start)
+        self.end = datetime.datetime(*data_end)
+        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.chart_data = self.data
+        self.test_size = len(self.data)//10-1
+        self.gap = gap
+        print(self.data.isna().sum())
+
+        self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=self.n_splits, test_size=self.test_size)
+
+    def ts_cv_List(self,data):
+        list = []
+        for train_index, test_index in self.tscv.split(data):
+            X_train, X_test = data.iloc[train_index, :], data.iloc[test_index, :]
+            list.append((X_train, X_test))
+        return list
+
+
+    def test_size(self):
+        return self.test_size
+
+    def entire_data(self):
+        return self.chart_data
+
+    def __len__(self):
+        return self.n_splits
+
+    def __getitem__(self, item):
+        data = self.data
+        data_close = data[['Close']]
+        raw_datalist = self.ts_cv_List(data_close)
+
+        return raw_datalist[item]
+
+class StockDatasetCV(Dataset):
+
+    def __init__(self, split_data,raw_data, x_frames, y_frames):
+        self.x_frames = x_frames
+        self.y_frames = y_frames
+        self.split_data = split_data
+        self.raw_data = raw_data
+        print(self.split_data.isna().sum())
+
+    ## 데이터셋에 len() 을 사용하기 위해 만들어주는것 (dataloader에서 batch를 만들때 이용됨)
+    def __len__(self):
+        return len(self.split_data) - (self.x_frames + self.y_frames) + 1
+
+    ## a[:]와 같은 indexing 을 위해 getinem 을 만듬
+    ## custom dataset이 list가 아님에도 그 데이터셋의 i번째의 x,y를 출력해줌
+    def __getitem__(self, idx):
+        idx += self.x_frames
+
+        ## raw data
+        raw_data = self.raw_data.iloc[idx - self.x_frames:idx + self.y_frames]
+        raw_min_data, raw_max_data = np.array(raw_data.min()), np.array(raw_data.max())
+
+        normed_raw_data = (raw_data-raw_min_data) / (raw_max_data-raw_min_data)
+
+        ## decomposed data
+        split_data = pd.DataFrame(self.split_data).iloc[idx - self.x_frames:idx + self.y_frames]
+        min_data, max_data = np.array(split_data.min()), np.array(split_data.max())
+
+        normed_data = []
+        for i in range(len(max_data)):
+            i_data = (split_data.iloc[:, i] - min_data[i]) / (max_data[i] - min_data[i])
+            normed_data.append(i_data)
+        normed_data = pd.DataFrame(np.array(normed_data).T)
+        normed_data = normed_data.values ## (data.frame >> numpy array) convert >> 나중에 dataloader가 취합해줌
+
+        ## x와 y기준으로 split
+        X = normed_data[:self.x_frames]
+        y = normed_data[self.x_frames:]
+        raw_y = np.array(normed_raw_data[self.x_frames:])[0]
+
+        return X, raw_y, raw_min_data, raw_max_data
 
 
 # model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
@@ -274,6 +453,7 @@ data_list = ['ETH-USD','^KS11']
 data_list = ['ETH-USD']
 model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 model_list = [LSTMMD.RNN]
+model_list = [RNN]
 
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\results'
 
@@ -311,28 +491,41 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
                 data_start = (2011, 1, 1)
                 data_end = (2020, 12, 31)
 
+            ## 분할된 종가와, raw 종가 두가지를 train test split
             splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
-            entire_data = splitted_test_train.entire_data()
+            splitted_raw_test_train = CV_raw_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
 
-            args.series_Data = splitted_test_train.entire_data
+            entire_data = splitted_raw_test_train.entire_data()
+
             test_metric1_list = []
             test_metric2_list = []
             test_metric3_list = []
             for iteration_n in range(args.split):
                 args.iteration = iteration_n
+
+                ##decomosed data
                 train_data, test_data = splitted_test_train[args.iteration][0], splitted_test_train[args.iteration][1]
+                ##raw data
+                train_raw_data, test_raw_data = splitted_raw_test_train[args.iteration][0], splitted_raw_test_train[args.iteration][1]
+
                 test_size = splitted_test_train.test_size
                 splitted_train_val = CV_train_Spliter(train_data, args.symbol, test_size=test_size)
-                train_data, val_data = splitted_train_val[1][0], splitted_train_val[1][1]
+                splitted_raw_train_val = CV_train_Spliter(train_raw_data, args.symbol, test_size=test_size)
 
-                trainset = StockDatasetCV(train_data, args.x_frames, args.y_frames)
-                valset   = StockDatasetCV(val_data, args.x_frames, args.y_frames)
-                testset  = StockDatasetCV(test_data, args.x_frames, args.y_frames)
+
+                train_data, val_data = splitted_train_val[1][0], splitted_train_val[1][1]
+                train_raw_data, val_raw_data = splitted_raw_train_val[1][0], splitted_raw_train_val[1][1]
+
+
+                trainset = StockDatasetCV(train_data,train_raw_data, args.x_frames, args.y_frames)
+                valset   = StockDatasetCV(val_data,val_raw_data, args.x_frames, args.y_frames)
+                testset  = StockDatasetCV(test_data,test_raw_data, args.x_frames, args.y_frames)
+
                 partition = {'train': trainset, 'val': valset, 'test': testset}
 
                 args.innate_path = args.new_file_path + '\\' + str(args.iteration) +'_iter' ## 내부 파일경로
                 os.makedirs(args.innate_path)
-                print(args)
+
 
                 setting, result = experiment(partition, deepcopy(args))
                 test_metric1_list.append(result['test_loss_metric1'])
@@ -369,21 +562,6 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
                 test_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames+test_length))
                 entire_index = list(range(entire_length))
 
-                # train_graph = pd.DataFrame(predicted_traing,index=train_index)
-                # val_graph = pd.DataFrame(predicted_valg,index=val_index)
-                # test_graph = pd.DataFrame(predicted_testg,index=test_index)
-                # entire_graph = pd.DataFrame(entire_dataa,index=entire_index)
-
-                # train_graph = pd.DataFrame({"data" : np.array(predicted_traing),"index":train_index})
-                # val_graph = pd.DataFrame({"data" : np.array(predicted_valg),"index":val_index})
-                # test_graph = pd.DataFrame({"data" : np.array(predicted_testg),"index":test_index})
-                # entire_graph = pd.DataFrame({"data" : np.array(entire_dataa),"index":entire_index})
-
-                # train_graph.set_index('index', inplace=True)
-                # val_graph.set_index('index', inplace=True)
-                # test_graph.set_index('index', inplace=True)
-                # entire_graph.set_index('index', inplace=True)
-
                 fig2 = plt.figure()
                 plt.plot(entire_index, entire_dataa)
                 plt.plot(train_index, predicted_traing)
@@ -397,8 +575,6 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
                 plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_chart_fig' + '.png')
                 plt.close(fig2)
 
-
-                #save_exp_result(setting, result)
 
             avg_test_metric1 = sum(test_metric1_list) / len(test_metric1_list)
             avg_test_metric2 = sum(test_metric2_list) / len(test_metric2_list)

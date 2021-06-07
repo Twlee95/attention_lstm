@@ -275,9 +275,78 @@ cvds[0]
 
 
 
+import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
+import pandas_datareader.data as pdr
+import datetime
+from statsmodels.tsa.seasonal import STL
+import matplotlib.pyplot as plt
+import pandas as pd
+
+## 고전적인 time series decomposition은 몇가지 문제가 있다.
+## 1) two-sided moving everage 를 사용하기 때문에 trend cycle에서 몇가지 부재가 관측된다.
+## 2) seasonal component가 전체 series에 대해서 상수이다. 이것은 단기 주기에 대해서는 적절할 수 있지만
+## 장기 주기에 대해서는 적절할지 않을 수 있다.
+## 3) trend data는 데이터에 대해 과하게 smoothing됐을수도 있다. 그러므로 그것은 그 실제 변동에 대한 변동을 반영하지 않을 수 있고
+## 이것은 큰 remainder를 야기시킬수있다.
+## x11 decomposition은 월간 or 분기별 데이터만을 다룰 수 있다.
+## 그 대안으로 stl decomposition을 사용할 수 있다.
+data_start = (2010, 1, 4)
+data_end = (2020, 12, 31)
 data = pdr.DataReader('^KS11', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
 
+data_close = data[['Close']]
+idx = pd.date_range("2010-01-01", freq="D", periods=len(data_close))
+data_close = data_close.set_index(idx)
+stl = STL(data_close).fit()
+
+trend = stl.trend.array
+seasonal = stl.seasonal.array
+resid = stl.resid.array
+
+df = pd.DataFrame(np.array([trend, seasonal, resid]).T,columns=["trend","seasonal","resid"])
+
+print(type(df[["trend"]]))
+
+#df = pd.concat([,,],axis=1)
+
+print(type(stl.seasonal.to_frame()))
+
+min_data, max_data = df.min().array, df.max()
+
+type(min_data)
+
+normed_data = []
+for i in range(len(max_data)):
+    i_data = (df.iloc[:, i] - min_data[i]) / (max_data[i] - min_data[i])
+    normed_data.append(i_data)
+df2 = pd.DataFrame(np.array(normed_data).T)
+
+
+print(type(df2[0]))
+
+
+
+
+stl.observed
+stl.seasonal
+stl.trend
+stl.resid
+
+stl.plot()
+plt.show()
+
+
+
+res = STL(data_close,seasonal=13,period=12).fit()
+res.plot()
+plt.show()
+
+
+
 tscv = TimeSeriesSplit(gap=0, max_train_size=None, n_splits=7, test_size=300)
+
+
 
 type(trainset)
 a=np.array([1,2,3,4])
