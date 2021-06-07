@@ -329,6 +329,8 @@ class CV_Data_Spliter:
 
         self.tscv = TimeSeriesSplit(gap=self.gap, max_train_size=None, n_splits=self.n_splits, test_size=self.test_size)
 
+
+
     def ts_cv_List(self,data):
         list = []
         for train_index, test_index in self.tscv.split(data):
