@@ -375,7 +375,7 @@ class RNN(nn.Module):
 
         ## lstm_out : 각 time step에서의 lstm 모델의 output 값
         ## lstm_out[-1] : 맨마지막의 아웃풋 값으로 그 다음을 예측하고싶은 것이기 때문에 -1을 해줌
-        y_pred = self.regressor(RNN_out[-1].reshape(self.batch_size, -1))  ## self.batch size로 reshape해 regressor에 대입
+        y_pred = self.regressor(RNN_out[-1].view(self.batch_size, -1))  ## self.batch size로 reshape해 regressor에 대입
 
         return y_pred
 

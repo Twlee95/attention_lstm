@@ -1,3 +1,24 @@
+from sklearn.datasets import make_regression
+import matplotlib.pyplot as plt
+from sklearn.linear_model import Ridge
+
+
+
+datasets = make_regression(n_samples= 500,n_features=10, noise= 0.3 )
+type(datasets)
+len(datasets)
+datasets[0].shape
+datasets[1].shape
+
+
+
+
+ridge10 = Ridge().fit(datasets[0], datasets[1])
+print(ridge10)
+
+plt.scatter(ridge10.coef_)
+
+
 ## 가상의 데이터셋
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -296,6 +317,7 @@ data_end = (2020, 12, 31)
 data = pdr.DataReader('^KS11', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
 
 data_close = data[['Close']]
+type(data_close)
 idx = pd.date_range("2010-01-01", freq="D", periods=len(data_close))
 data_close = data_close.set_index(idx)
 stl = STL(data_close).fit()
@@ -305,6 +327,38 @@ seasonal = stl.seasonal.array
 resid = stl.resid.array
 
 df = pd.DataFrame(np.array([trend, seasonal, resid]).T,columns=["trend","seasonal","resid"])
+
+import sys
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
+
+from PyEMD import EMD
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+s = np.random.random(100)
+s.shape
+plt.plot(data_close)
+emd = EMD()
+
+data_close.to_numpy().shape
+
+IMFs = emd(data_close.to_numpy()[:,0])
+
+IMFs.shape
+plt.subplot(611)
+plt.plot(IMFs.T[:,0])
+plt.subplot(612)
+plt.plot(IMFs.T[:,1])
+plt.subplot(613)
+plt.plot(IMFs.T[:,2])
+plt.subplot(614)
+plt.plot(IMFs.T[:,3])
+plt.subplot(615)
+plt.plot(IMFs.T[:,4])
+plt.subplot(616)
+plt.plot(IMFs.T[:,5])
+
 
 print(type(df[["trend"]]))
 

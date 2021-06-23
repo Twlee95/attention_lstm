@@ -1,5 +1,7 @@
 import sys
 import pandas as pd
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\Deep-Time-Series-Prediction-master\\deepseries')
+
 sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
 import time
 import torch
@@ -231,8 +233,8 @@ args.use_bn = True
 # ====== Optimizer & Training ====== #
 args.optim = 'Adam'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
-args.epoch = 2
-args.split = 4
+args.epoch = 250
+args.split = 2
 # ====== Experiment Variable ====== #
 ## csv 파일 실행
 #trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
@@ -271,7 +273,7 @@ args.split = 4
 #              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
 
 data_list = ['ETH-USD','^KS11']
-data_list = ['ETH-USD']
+data_list = ['^KS11']
 model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 model_list = [LSTMMD.RNN]
 

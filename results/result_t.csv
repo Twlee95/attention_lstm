@@ -1,2 +1,0 @@
-model,stock,avg_test_metric1,std_test_metric1,avg_test_metric2,std_test_metric2,avg_test_metric3,std_test_metric3
-<class '__main__.RNN'>,ETH-USD,41.11323347897539,15.415671992315309,48.15210785959681,17.330923475972284,0.14906789015380606,0.0024108891506661317
