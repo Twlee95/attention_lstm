@@ -312,9 +312,12 @@ import pandas as pd
 ## 이것은 큰 remainder를 야기시킬수있다.
 ## x11 decomposition은 월간 or 분기별 데이터만을 다룰 수 있다.
 ## 그 대안으로 stl decomposition을 사용할 수 있다.
+import datetime
+import pandas_datareader.data as pdr
 data_start = (2010, 1, 4)
 data_end = (2020, 12, 31)
-data = pdr.DataReader('^KS11', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
+data = pdr.DataReader('TSLA', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
+df = pdr.get_data_yahoo("^KS11", datetime.datetime(*data_start), datetime.datetime(*data_end))
 
 data_close = data[['Close']]
 type(data_close)

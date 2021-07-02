@@ -1,8 +1,6 @@
 import sys
 import pandas as pd
-sys.path.append('C:\\Users\\leete\\PycharmProjects\\Deep-Time-Series-Prediction-master\\deepseries')
-
-sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\attention_LSTM')
 import time
 import torch
 import torch.nn as nn
@@ -21,6 +19,8 @@ from LSTM_MODEL_DATASET import CV_Data_Spliter as CV_Data_Spliter
 from LSTM_MODEL_DATASET import CV_train_Spliter as CV_train_Spliter
 import os
 import csv
+from attention_rnn2rnn import AttnSeq2Seq as Attention_lstm
+
 
 
 def train(model, partition, optimizer, loss_fn, args):
@@ -218,7 +218,7 @@ args.symbol = '^KQ11'
 args.batch_size = 128
 args.x_frames = 20
 args.y_frames = 1
-args.model = LSTMMD.RNN
+args.model = Attention_lstm
 
 # ====== Model Capacity ===== #
 args.input_dim = 1
@@ -236,11 +236,6 @@ args.lr = 0.0001
 args.epoch = 250
 args.split = 2
 # ====== Experiment Variable ====== #
-## csv 파일 실행
-#trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
-#valset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2013-01-01', '2016-12-31')
-#testset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2017-01-01', '2020-12-31')
-#partition = {'train': trainset, 'val': valset, 'test': testset}
 
 # '^KS11' : KOSPI
 # '^KQ11' : 코스닥
@@ -270,12 +265,10 @@ args.split = 2
 # model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 # data_list = ['^KS11', '^KQ11','^IXIC','^GSPC','^DJI','^HSI',
 #              '^N225','^GDAXI','^FCHI','^IBEX','^TWII','^AEX',
-#              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
+#              '^BSESN','^BVSP','GC=F','CL=F', 'BTC-USD','ETH-USD']
 
-data_list = ['ETH-USD','^KS11']
 data_list = ['^KS11']
-model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
-model_list = [LSTMMD.RNN]
+model_list = [Attention_lstm]
 
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\results'
 
@@ -285,139 +278,120 @@ with open(args.save_file_path + '\\' + 'result_t.csv', 'w', encoding='utf-8', ne
     wr.writerow(["model", "stock", "avg_test_metric1", "std_test_metric1",
                                                        "avg_test_metric2", "std_test_metric2",
                                                        "avg_test_metric3", "std_test_metric3"])
-    for i in model_list:
-        setattr(args, 'model', i)
-        for j in data_list:
-            setattr(args, 'symbol', j)
-            if args.model == LSTMMD.RNN:
-                model_name = 'RNN'
-            elif args.model == LSTMMD.LSTM:
-                model_name = 'LSTM'
-            else:
-                model_name = 'GRU'
-            args.new_file_path = args.save_file_path +'\\'+ model_name+'_' + args.symbol
-            os.makedirs(args.new_file_path)
-            if args.symbol == '^KQ11':
-                data_start = (2013, 3, 3)
-                data_end = (2020, 12, 31)
-            elif args.symbol == 'CL=F':
-                data_start = (2011, 1, 1)               ##(2000, 8, 23)
-                data_end = (2020, 12, 31)
-            elif args.symbol == 'BTC-USD':
-                data_start = (2014, 9, 17)
-                data_end = (2020, 12, 31)
-            elif args.symbol == 'ETH-USD':
-                data_start = (2015, 8, 7)
-                data_end = (2020, 12, 31)
-            else:  ## 나머지 모든 데이터들
-                data_start = (2011, 1, 1)
-                data_end = (2020, 12, 31)
+    for j in data_list:
+        setattr(args, 'symbol', j)
 
-            splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
-            entire_data = splitted_test_train.entire_data()
+        model_name = 'attention_LSTM'
 
-            args.series_Data = splitted_test_train.entire_data
-            test_metric1_list = []
-            test_metric2_list = []
-            test_metric3_list = []
-            for iteration_n in range(args.split):
-                args.iteration = iteration_n
-                train_data, test_data = splitted_test_train[args.iteration][0], splitted_test_train[args.iteration][1]
-                test_size = splitted_test_train.test_size
-                splitted_train_val = CV_train_Spliter(train_data, args.symbol, test_size=test_size)
-                train_data, val_data = splitted_train_val[1][0], splitted_train_val[1][1]
+        args.new_file_path = args.save_file_path +'\\'+ model_name+'_' + args.symbol
+        os.makedirs(args.new_file_path)
+        if args.symbol == '^KQ11':
+            data_start = (2013, 3, 3)
+            data_end = (2020, 12, 31)
+        elif args.symbol == 'CL=F':
+            data_start = (2011, 1, 1)               ##(2000, 8, 23)
+            data_end = (2020, 12, 31)
+        elif args.symbol == 'BTC-USD':
+            data_start = (2014, 9, 17)
+            data_end = (2020, 12, 31)
+        elif args.symbol == 'ETH-USD':
+            data_start = (2015, 8, 7)
+            data_end = (2020, 12, 31)
+        else:  ## 나머지 모든 데이터들
+            data_start = (2011, 1, 1)
+            data_end = (2020, 12, 31)
 
-                trainset = StockDatasetCV(train_data, args.x_frames, args.y_frames)
-                valset   = StockDatasetCV(val_data, args.x_frames, args.y_frames)
-                testset  = StockDatasetCV(test_data, args.x_frames, args.y_frames)
-                partition = {'train': trainset, 'val': valset, 'test': testset}
+        splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
+        entire_data = splitted_test_train.entire_data()
 
-                args.innate_path = args.new_file_path + '\\' + str(args.iteration) +'_iter' ## 내부 파일경로
-                os.makedirs(args.innate_path)
-                print(args)
+        args.series_Data = splitted_test_train.entire_data
+        test_metric1_list = []
+        test_metric2_list = []
+        test_metric3_list = []
+        for iteration_n in range(args.split):
+            args.iteration = iteration_n
+            train_data, test_data = splitted_test_train[args.iteration][0], splitted_test_train[args.iteration][1]
+            test_size = splitted_test_train.test_size
+            splitted_train_val = CV_train_Spliter(train_data, args.symbol, test_size=test_size)
+            train_data, val_data = splitted_train_val[1][0], splitted_train_val[1][1]
 
-                setting, result = experiment(partition, deepcopy(args))
-                test_metric1_list.append(result['test_loss_metric1'])
-                test_metric2_list.append(result['test_loss_metric2'])
-                test_metric3_list.append(result['test_loss_metric3'])
+            trainset = StockDatasetCV(train_data, args.x_frames, args.y_frames)
+            valset   = StockDatasetCV(val_data, args.x_frames, args.y_frames)
+            testset  = StockDatasetCV(test_data, args.x_frames, args.y_frames)
+            partition = {'train': trainset, 'val': valset, 'test': testset}
 
-                ## 그림
-                fig = plt.figure()
-                plt.plot(result['train_losses'])
-                plt.plot(result['val_losses'])
-                plt.legend(['train_losses', 'val_losses'], fontsize=15)
-                plt.xlabel('epoch', fontsize=15)
-                plt.ylabel('loss', fontsize=15)
-                plt.grid()
-                plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_fig' + '.png')
-                plt.close(fig)
+            args.innate_path = args.new_file_path + '\\' + str(args.iteration) +'_iter' ## 내부 파일경로
+            os.makedirs(args.innate_path)
+            print(args)
 
-                predicted_traing = result['train_val_graph'][0]
-                predicted_valg = result['train_val_graph'][1]
-                predicted_testg = result['test_graph']
-                entire_dataa = entire_data['Close'].values.tolist()
+            setting, result = experiment(partition, deepcopy(args))
+            test_metric1_list.append(result['test_loss_metric1'])
+            test_metric2_list.append(result['test_loss_metric2'])
+            test_metric3_list.append(result['test_loss_metric3'])
 
-                train_length = len(predicted_traing)
-                val_length = len(predicted_valg)
-                test_length = len(predicted_testg)
-                entire_length = len(entire_dataa)
+            ## 그림
+            fig = plt.figure()
+            plt.plot(result['train_losses'])
+            plt.plot(result['val_losses'])
+            plt.legend(['train_losses', 'val_losses'], fontsize=15)
+            plt.xlabel('epoch', fontsize=15)
+            plt.ylabel('loss', fontsize=15)
+            plt.grid()
+            plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_fig' + '.png')
+            plt.close(fig)
 
-                unused_triain = result['unused_data'][0]
-                unused_val = result['unused_data'][1]
-                unused_test = result['unused_data'][2]
+            predicted_traing = result['train_val_graph'][0]
+            predicted_valg = result['train_val_graph'][1]
+            predicted_testg = result['test_graph']
+            entire_dataa = entire_data['Close'].values.tolist()
 
-                train_index = list(range(args.x_frames,args.x_frames+train_length))
-                val_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length))
-                test_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames+test_length))
-                entire_index = list(range(entire_length))
+            train_length = len(predicted_traing)
+            val_length = len(predicted_valg)
+            test_length = len(predicted_testg)
+            entire_length = len(entire_dataa)
 
-                # train_graph = pd.DataFrame(predicted_traing,index=train_index)
-                # val_graph = pd.DataFrame(predicted_valg,index=val_index)
-                # test_graph = pd.DataFrame(predicted_testg,index=test_index)
-                # entire_graph = pd.DataFrame(entire_dataa,index=entire_index)
+            unused_triain = result['unused_data'][0]
+            unused_val = result['unused_data'][1]
+            unused_test = result['unused_data'][2]
 
-                # train_graph = pd.DataFrame({"data" : np.array(predicted_traing),"index":train_index})
-                # val_graph = pd.DataFrame({"data" : np.array(predicted_valg),"index":val_index})
-                # test_graph = pd.DataFrame({"data" : np.array(predicted_testg),"index":test_index})
-                # entire_graph = pd.DataFrame({"data" : np.array(entire_dataa),"index":entire_index})
-
-                # train_graph.set_index('index', inplace=True)
-                # val_graph.set_index('index', inplace=True)
-                # test_graph.set_index('index', inplace=True)
-                # entire_graph.set_index('index', inplace=True)
-
-                fig2 = plt.figure()
-                plt.plot(entire_index, entire_dataa)
-                plt.plot(train_index, predicted_traing)
-                plt.plot(val_index, predicted_valg)
-                plt.plot(test_index, predicted_testg)
-                plt.legend(['raw_data', 'predicted_train', 'predicted_val','predicted_test'], fontsize=15)
-                plt.xlim(0, entire_length)
-                plt.xlabel('time', fontsize=15)
-                plt.ylabel('value', fontsize=15)
-                plt.grid()
-                plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_chart_fig' + '.png')
-                plt.close(fig2)
+            train_index = list(range(args.x_frames,args.x_frames+train_length))
+            val_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length))
+            test_index = list(range(args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames, args.x_frames+train_length+unused_triain+args.x_frames+val_length+unused_val+args.x_frames+test_length))
+            entire_index = list(range(entire_length))
 
 
-                #save_exp_result(setting, result)
+            fig2 = plt.figure()
+            plt.plot(entire_index, entire_dataa)
+            plt.plot(train_index, predicted_traing)
+            plt.plot(val_index, predicted_valg)
+            plt.plot(test_index, predicted_testg)
+            plt.legend(['raw_data', 'predicted_train', 'predicted_val','predicted_test'], fontsize=15)
+            plt.xlim(0, entire_length)
+            plt.xlabel('time', fontsize=15)
+            plt.ylabel('value', fontsize=15)
+            plt.grid()
+            plt.savefig(args.new_file_path + '\\' + str(args.iteration) + '_chart_fig' + '.png')
+            plt.close(fig2)
 
-            avg_test_metric1 = sum(test_metric1_list) / len(test_metric1_list)
-            avg_test_metric2 = sum(test_metric2_list) / len(test_metric2_list)
-            avg_test_metric3 = sum(test_metric3_list) / len(test_metric3_list)
-            std_test_metric1 = np.std(test_metric1_list)
-            std_test_metric2 = np.std(test_metric2_list)
-            std_test_metric3 = np.std(test_metric3_list)
 
-            #csv파일에 기록하기
-            wr.writerow([str(args.model), args.symbol, avg_test_metric1, std_test_metric1,
-                                                       avg_test_metric2, std_test_metric2,
-                                                       avg_test_metric3, std_test_metric3])
+            #save_exp_result(setting, result)
 
-            with open(args.new_file_path + '\\' + 'result_t.txt', 'w') as fd:
-                print('metric1 \n avg: {}, std : {}\n'.format(avg_test_metric1, std_test_metric1), file=fd)
-                print('metric2 \n avg: {}, std : {}\n'.format(avg_test_metric2, std_test_metric2), file=fd)
-                print('metric3 \n avg: {}, std : {}\n'.format(avg_test_metric3, std_test_metric3), file=fd)
-            print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric1))
-            print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric2))
-            print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric3))
+        avg_test_metric1 = sum(test_metric1_list) / len(test_metric1_list)
+        avg_test_metric2 = sum(test_metric2_list) / len(test_metric2_list)
+        avg_test_metric3 = sum(test_metric3_list) / len(test_metric3_list)
+        std_test_metric1 = np.std(test_metric1_list)
+        std_test_metric2 = np.std(test_metric2_list)
+        std_test_metric3 = np.std(test_metric3_list)
+
+        #csv파일에 기록하기
+        wr.writerow([str(args.model), args.symbol, avg_test_metric1, std_test_metric1,
+                                                   avg_test_metric2, std_test_metric2,
+                                                   avg_test_metric3, std_test_metric3])
+
+        with open(args.new_file_path + '\\' + 'result_t.txt', 'w') as fd:
+            print('metric1 \n avg: {}, std : {}\n'.format(avg_test_metric1, std_test_metric1), file=fd)
+            print('metric2 \n avg: {}, std : {}\n'.format(avg_test_metric2, std_test_metric2), file=fd)
+            print('metric3 \n avg: {}, std : {}\n'.format(avg_test_metric3, std_test_metric3), file=fd)
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric1))
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric2))
+        print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric3))

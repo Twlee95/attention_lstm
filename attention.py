@@ -70,7 +70,7 @@ class Attention(nn.Module):
 
     def forward(self, query, key, value, mask=None):
         """inputs shape (B, S, N)"""
-
+        print(query.size())
         batch_size = query.size(0)
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
@@ -94,17 +94,4 @@ if __name__ == "__main__": ## 인터프리터에서 직접 실행했을 경우�
 
     attn = Attention(heads=3, attn_size=9, query_size=30, value_size=9, key_size=9, dropout=0.)
     values, weights = attn(q, k, k)
-
-
-q = torch.rand(4, 7, 30)
-k = torch.rand(4, 12, 9)
-
-q.size()
-k.size()
-
-print(type(values))
-print(type(weights))
-
-print(weights.size())
-print(values.size())
 

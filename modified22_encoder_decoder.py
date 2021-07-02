@@ -1,6 +1,6 @@
 import sys
 import pandas as pd
-sys.path.append('C:\\Users\\leete\\PycharmProjects\\LSTM')
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\attention_LSTM')
 import time
 import torch
 import torch.nn as nn
@@ -14,12 +14,13 @@ import LSTM_MODEL_DATASET as LSTMMD
 from LSTM_MODEL_DATASET import metric1 as metric1
 from LSTM_MODEL_DATASET import metric2 as metric2
 from LSTM_MODEL_DATASET import metric3 as metric3
-from LSTM_MODEL_DATASET import StockDatasetCV as StockDatasetCV
-from LSTM_MODEL_DATASET import CV_Data_Spliter as CV_Data_Spliter
-from LSTM_MODEL_DATASET import CV_train_Spliter as CV_train_Spliter
+from LSTM_MODEL_DATASET import StockDatasetCV
+from LSTM_MODEL_DATASET import CV_Data_Spliter
+from LSTM_MODEL_DATASET import CV_train_Spliter
 import os
 import csv
-
+from attention_rnn2rnn import AttnSeq2Seq as Attention_lstm
+import attention
 
 class LSTM_enc(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, batch_size):
@@ -50,7 +51,7 @@ class LSTM_enc(nn.Module):
 
 
 class LSTM_dec(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn,attn_head, attn_size):
         super(LSTM_dec, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -63,16 +64,19 @@ class LSTM_dec(nn.Module):
         ## 파이토치에 있는 lstm모듈
         ## output dim 은 self.regressor에서 사용됨
         self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers)
+        self.attention = attention.Attention(attn_head, attn_size, hidden_dim, hidden_dim, hidden_dim, dropout)
+
+        self.regression_input_size = attn_size + hidden_dim
         self.regressor = self.make_regressor()
 
     def make_regressor(self): # 간단한 MLP를 만드는 함수
         layers = []
         if self.use_bn:
-            layers.append(nn.BatchNorm1d(self.hidden_dim))  ##  nn.BatchNorm1d
+            layers.append(nn.BatchNorm1d(self.regression_input_size))  ##  nn.BatchNorm1d
         layers.append(nn.Dropout(self.dropout))    ##  nn.Dropout
 
         ## hidden dim을 outputdim으로 바꿔주는 MLP
-        layers.append(nn.Linear(self.hidden_dim, self.output_dim))
+        layers.append(nn.Linear(self.regression_input_size, self.output_dim))
         regressor = nn.Sequential(*layers)
         return regressor
 
@@ -82,12 +86,16 @@ class LSTM_dec(nn.Module):
         ## LSTM의 hidden state에는 tuple로 cell state포함, 0번째는 hidden state tensor, 1번째는 cell state
 
         lstm_out, self.hidden = self.lstm(x, encoder_hidden_states)
+
+        attn_applied, attn_weights = self.attention(lstm_out, encoder_hidden_states, encoder_hidden_states)
+
         ## lstm_out : 각 time step에서의 lstm 모델의 output 값
         ## lstm_out[-1] : 맨마지막의 아웃풋 값으로 그 다음을 예측하고싶은 것이기 때문에 -1을 해줌
-        y_pred = self.regressor(lstm_out[-1].view(self.batch_size, -1)) ## self.batch size로 reshape해 regressor에 대입
+        concat = self.activation(torch.cat([attn_applied, lstm_out], dim=2))
 
-        return y_pred
+        y_pred = self.regressor(concat.view(self.batch_size, -1)) ## self.batch size로 reshape해 regressor에 대입
 
+        return y_pred, attn_weights
 
 def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args):
     trainloader = DataLoader(partition['train'],    ## DataLoader는 dataset에서 불러온 값으로 랜덤으로 배치를 만들어줌
@@ -130,7 +138,7 @@ def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args
         decoder.zero_grad()
         dec_optimizer.zero_grad()
 
-        y_pred_dec = decoder(X, decoder_hidden)
+        y_pred_dec, atten_w = decoder(X, decoder_hidden)
         reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
 
         y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
@@ -167,7 +175,7 @@ def validate(encoder, decoder, partition, loss_fn, args):
 
             y_true = y[:, :].float().to(args.device)
 
-            y_pred_dec = decoder(X,decoder_hidden)
+            y_pred_dec, atten_w = decoder(X,decoder_hidden)
 
             reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
             y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
@@ -200,11 +208,11 @@ def test(encoder,decoder, partition, args):
             encoder.hidden = [hidden.to(args.device) for hidden in encoder.init_hidden()]
             y_pred_enc, encoder_hidden = encoder(X)
 
-            decoder_hidden = encoder_hidden
+            decoder_hidden= encoder_hidden
 
             y_true = y[:, :].float().to(args.device)
 
-            y_pred_dec = decoder(X,decoder_hidden)
+            y_pred_dec, atten_w  = decoder(X,decoder_hidden)
 
             reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
             reformed_y_true = y_true.squeeze() * (max - min) + min
@@ -224,7 +232,7 @@ def test(encoder,decoder, partition, args):
 def experiment(partition, args):
     encoder = args.encoder(args.input_dim, args.hid_dim, args.n_layers, args.batch_size)
     decoder = args.decoder(args.input_dim, args.hid_dim, args.y_frames, args.n_layers, args.batch_size,
-                           args.dropout, args.use_bn)
+                           args.dropout, args.use_bn,args.attn_head,args.attn_size)
 
     encoder.to(args.device)
     decoder.to(args.device)
@@ -341,11 +349,9 @@ args.lr = 0.0001
 args.epoch = 2
 args.split = 4
 # ====== Experiment Variable ====== #
-## csv 파일 실행
-#trainset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2000-01-01', '2012-12-31')
-#valset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2013-01-01', '2016-12-31')
-#testset = LSTMMD.csvStockDataset(args.data_site, args.x_frames, args.y_frames, '2017-01-01', '2020-12-31')
-#partition = {'train': trainset, 'val': valset, 'test': testset}
+args.attn_head = 3
+args.attn_size = 9
+
 
 # '^KS11' : KOSPI
 # '^KQ11' : 코스닥
@@ -378,9 +384,9 @@ args.split = 4
 #              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
 
 data_list = ['ETH-USD','^KS11']
-data_list = ['ETH-USD']
+data_list = ['^IXIC']
 
-args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\LSTM\\results'
+args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\attention_LSTM\\results'
 
 with open(args.save_file_path + '\\' + 'ENC_DEC_result_t.csv', 'w', encoding='utf-8', newline='') as f:
     wr = csv.writer(f)

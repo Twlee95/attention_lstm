@@ -6,9 +6,9 @@
 """
 import torch
 import torch.nn as nn
-from deepseries.model.seq2seq.utils import *
-from deepseries.model.seq2seq.encoder import RNNEncoder
-from deepseries.model.seq2seq.decoder import AttnRNNDecoder
+from attention_LSTM.utils import *
+from attention_LSTM.encoder import RNNEncoder
+from attention_LSTM.decoder import AttnRNNDecoder
 import random
 
 
