@@ -316,8 +316,82 @@ import datetime
 import pandas_datareader.data as pdr
 data_start = (2010, 1, 4)
 data_end = (2020, 12, 31)
-data = pdr.DataReader('TSLA', 'yahoo', datetime.datetime(*data_start), datetime.datetime(*data_end))
-df = pdr.get_data_yahoo("^KS11", datetime.datetime(*data_start), datetime.datetime(*data_end))
+
+data_start = "2010-01-04"
+data_end = "2020-12-31"
+
+data = pdr.DataReader('^GSPC', 'yahoo', data_start, data_end)
+data=pdr.get_data_yahoo('^GSPC', datetime.datetime(*data_start), datetime.datetime(*data_end))
+
+
+
+
+# FinanceDataReader
+# KS11	:KOSPI 지수
+# KQ11	KOSDAQ 지수
+# KS50	KOSPI 50 지수
+# KS100	KOSPI 100
+#
+# KRX100	KRX 100
+# KS200	코스피 200
+# DJI	다우존스 지수
+# IXIC	나스닥 종합 지수
+# 	S&P 500 지수
+# JP225	닛케이 225 선물
+# STOXX50	유럽 STOXX 50
+# HK50	항셍 지수US500
+# CSI300	CSI 300 (중국)
+# TWII	대만 가권 지수
+# SSEC	상해 종합
+# UK100	영국 FTSE
+# DE30	독일 DAX 30
+# FCHI	프랑스 CAC 40
+# GC	금 선물 (COMEX)
+# CL	WTI유 선물 (NYMEX)
+# BTC/KRW	비트코인 원화 가격
+# ETH/KRW	이더리움 원화 가격
+import sys
+import pandas as pd
+sys.path.append('C:\\Users\\leete\\PycharmProjects\\attention_LSTM')
+import FinanceDataReader as fdr
+from datetime import datetime
+
+start_date = datetime(2007,1,1)
+end_date = datetime(2020,3,3)
+# '^KS11' : KOSPI                                      'KS11'
+# '^KQ11' : 코스닥                                      'KQ11'
+# '^IXIC' : 나스닥                                      'IXIC'
+# '^GSPC' : SNP 500 지수                                'US500'
+# '^DJI' : 다우존수 산업지수                              'DJI'
+# '^HSI' : 홍콩 항생 지수                                'HK50'
+# '^N225' : 니케이지수                                   'JP225'
+# '^GDAXI' : 독일 DAX                                   'DE30'
+# '^FTSE' : 영국 FTSE                                   'UK100'
+# '^FCHI' : 프랑스 CAC                                  'FCHI'
+# '^IBEX' : 스페인 IBEX
+# '^TWII' : 대만 기권                                   'TWII
+# '^AEX' : 네덜란드 AEX
+# '^BSESN' : 인도 센섹스
+# 'RTSI.ME' : 러시아 RTXI
+# '^BVSP' : 브라질 보베스파 지수
+# 'GC=F' : 금 가격                                       'GC'
+# 'CL=F' : 원유 가격 (2000/ 8 / 20일 부터 데이터가 있음)    'CL'
+# 'BTC-USD' : 비트코인 암호화폐                           'BTC/KRW'
+# 'ETH-USD' : 이더리움 암호화폐                           'ETH/KRW'
+## 중국                                                 'CSI300'
+# 	상해 종합                                            'SSEC'
+#  베트남 하노이                                          'HNX30'
+
+
+df = fdr.DataReader('KS11', '2000-01-01', '2019-12-31')
+df = fdr.DataReader('CL', '2000-01-01', '2019-12-31')
+
+
+
+df = pdr.get_data_yahoo("^KS11", start_date, end_date)
+df
+
+
 
 data_close = data[['Close']]
 type(data_close)

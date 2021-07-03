@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
 import math
+import FinanceDataReader as fdr
 
 
 def metric1(y_pred, y_true):
@@ -60,9 +61,14 @@ class CV_Data_Spliter:
     def __init__(self, symbol, data_start, data_end,n_splits,gap=0):
         self.symbol = symbol
         self.n_splits = n_splits
-        self.start = datetime.datetime(*data_start)
-        self.end = datetime.datetime(*data_end)
-        self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        # self.start = datetime.datetime(*data_start)
+        # self.end = datetime.datetime(*data_end)
+        self.start = data_start
+        self.end = data_end
+
+        # self.data = pdr.DataReader(self.symbol, 'yahoo', self.start, self.end)
+        self.data = fdr.DataReader(self.symbol, self.start, self.end)
+
         self.chart_data = self.data
         self.test_size = len(self.data)//10-1
         self.gap = gap

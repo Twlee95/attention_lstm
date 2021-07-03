@@ -353,38 +353,45 @@ args.attn_head = 3
 args.attn_size = 9
 
 
-# '^KS11' : KOSPI
-# '^KQ11' : 코스닥
-# '^IXIC' : 나스닥
-# '^GSPC' : SNP 500 지수
-# '^DJI' : 다우존수 산업지수
-# '^HSI' : 홍콩 항생 지수
-# '^N225' : 니케이지수
-# '^GDAXI' : 독일 DAX
-# '^FTSE' : 영국 FTSE
-# '^FCHI' : 프랑스 CAC
+# '^KS11' : KOSPI                                      'KS11'
+# '^KQ11' : 코스닥                                      'KQ11'
+# '^IXIC' : 나스닥                                      'IXIC'
+# '^GSPC' : SNP 500 지수                                'US500'
+# '^DJI' : 다우존수 산업지수                              'DJI'
+# '^HSI' : 홍콩 항생 지수                                'HK50'
+# '^N225' : 니케이지수                                   'JP225'
+# '^GDAXI' : 독일 DAX                                   'DE30'
+# '^FTSE' : 영국 FTSE                                   'UK100'
+# '^FCHI' : 프랑스 CAC                                  'FCHI'
 # '^IBEX' : 스페인 IBEX
-# '^TWII' : 대만 기권
+# '^TWII' : 대만 기권                                   'TWII'
 # '^AEX' : 네덜란드 AEX
 # '^BSESN' : 인도 센섹스
 # 'RTSI.ME' : 러시아 RTXI
 # '^BVSP' : 브라질 보베스파 지수
-# 'GC=F' : 금 가격
-# 'CL=F' : 원유 가격 (2000/ 8 / 20일 부터 데이터가 있음)
-# 10년만기 미국 국채
-# 'BTC-USD' : 비트코인 암호화폐
-# 'ETH-USD' : 이더리움 암호화폐
-
+# 'GC=F' : 금 가격                                       'GC'
+# 'CL=F' : 원유 가격 (2000/ 8 / 20일 부터 데이터가 있음)    'CL'
+# 'BTC-USD' : 비트코인 암호화폐                           'BTC/KRW'
+# 'ETH-USD' : 이더리움 암호화폐                           'ETH/KRW'
+## 중국                                                 'CSI300'
+# 	상해 종합                                            'SSEC'
+#  베트남 하노이                                          'HNX30'
 
 
 
 # model_list = [LSTMMD.RNN,LSTMMD.LSTM,LSTMMD.GRU]
 # data_list = ['^KS11', '^KQ11','^IXIC','^GSPC','^DJI','^HSI',
 #              '^N225','^GDAXI','^FCHI','^IBEX','^TWII','^AEX',
-#              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD']
+#              '^BSESN','^BVSP','GC=F','BTC-USD','ETH-USD','CL=F']
 
-data_list = ['ETH-USD','^KS11']
-data_list = ['^IXIC']
+
+data_list = ['KS11','KQ11', 'IXIC', 'US500',
+             'DJI', 'HK50', 'JP225', 'DE30',
+             'UK100', 'FCHI', 'TWII', 'GC',
+             'CL', 'BTC/KRW', 'ETH/KRW', 'CSI300',
+             'SSEC', 'HNX30']
+data_list = ['KS11']
+
 
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\attention_LSTM\\results'
 
@@ -401,20 +408,20 @@ with open(args.save_file_path + '\\' + 'ENC_DEC_result_t.csv', 'w', encoding='ut
         args.new_file_path = args.save_file_path +'\\'+ model_name+'_' + args.symbol
         os.makedirs(args.new_file_path)
         if args.symbol == '^KQ11':
-            data_start = (2013, 3, 3)
-            data_end = (2020, 12, 31)
+            data_start = '2013-03-03' # (2013, 3, 3)
+            data_end = '2020-12-31' # (2020, 12, 31)
         elif args.symbol == 'CL=F':
-            data_start = (2011, 1, 1)               ##(2000, 8, 23)
-            data_end = (2020, 12, 31)
+            data_start = '2011-01-01' # (2011, 1, 1)               ##(2000, 8, 23)
+            data_end =  '2020-12-31' #(2020, 12, 31)
         elif args.symbol == 'BTC-USD':
-            data_start = (2014, 9, 17)
-            data_end = (2020, 12, 31)
+            data_start = '2014-09-17'  # (2014, 9, 17)
+            data_end =  '2020-12-31'  # (2020, 12, 31)
         elif args.symbol == 'ETH-USD':
-            data_start = (2015, 8, 7)
-            data_end = (2020, 12, 31)
+            data_start = '2015-08-07' #(2015, 8, 7)
+            data_end = '2020-12-31' #(2020, 12, 31)
         else:  ## 나머지 모든 데이터들
-            data_start = (2011, 1, 1)
-            data_end = (2020, 12, 31)
+            data_start = '2011-01-10' # (2011, 1, 1)
+            data_end = '2020-12-31' # (2020, 12, 31)
 
         splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)
         entire_data = splitted_test_train.entire_data()
