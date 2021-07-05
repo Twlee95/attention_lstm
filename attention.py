@@ -55,7 +55,7 @@ class Attention(nn.Module):
     ## Value : 모든 시점의 인코더 셀의 은닉 상태
     #Attention(attn_head, attn_size, hidden_size, hidden_size, hidden_size, dropout)
     def __init__(self, heads, attn_size, query_size, key_size, value_size, dropout):
-        super().__init__()
+        super(Attention,self).__init__()
         assert attn_size % heads == 0
 
         # We assume d_v always equals d_k
@@ -70,12 +70,12 @@ class Attention(nn.Module):
 
     def forward(self, query, key, value, mask=None):
         """inputs shape (B, S, N)"""
-        print(query.size())
         batch_size = query.size(0)
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = [l(x).view(batch_size, -1, self.h, self.d_k).transpose(1, 2)
                              for l, x in zip(self.linear_layers, (query, key, value))]
+        ## 이경우 nn.Linear(query_size, attn_size) 와 query 가 맨 첫번째로  .view 함수에 들어감
 
         # 2) Apply attention on all the projected vectors in batch.
         x, attn = self.align(query, key, value, mask=mask, dropout=self.dropout)

@@ -24,7 +24,7 @@ import attention
 
 class LSTM_enc(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, batch_size):
-        super(LSTM_enc, self).__init__()
+        super(LSTM_enc,self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -49,34 +49,40 @@ class LSTM_enc(nn.Module):
 
 
 
-
 class LSTM_dec(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout, use_bn,attn_head, attn_size):
-        super(LSTM_dec, self).__init__()
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, batch_size, dropout,use_bn, attn_head,
+                 attn_size,x_frames, activation="ReLU"):
+        super(LSTM_dec,self).__init__()
         self.input_dim = input_dim
+        self.seq_len = x_frames
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.num_layers = num_layers
         self.batch_size = batch_size
+        self.attn_head = attn_head
+        self.attn_size = attn_size
         self.dropout = dropout
         self.use_bn = use_bn
+        self.activation = getattr(nn, activation)()
 
         ## 파이토치에 있는 lstm모듈
         ## output dim 은 self.regressor에서 사용됨
         self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers)
-        self.attention = attention.Attention(attn_head, attn_size, hidden_dim, hidden_dim, hidden_dim, dropout)
+        self.attention = attention.Attention(self.attn_head, self.attn_size, self.hidden_dim, self.hidden_dim,
+                                             self.hidden_dim, self.dropout)
 
-        self.regression_input_size = attn_size + hidden_dim
+
+        self.regression_input_size = self.attn_size + self.hidden_dim
         self.regressor = self.make_regressor()
 
     def make_regressor(self): # 간단한 MLP를 만드는 함수
         layers = []
         if self.use_bn:
-            layers.append(nn.BatchNorm1d(self.regression_input_size))  ##  nn.BatchNorm1d
+            layers.append(nn.BatchNorm1d(self.seq_len * self.regression_input_size))  ##  nn.BatchNorm1d
         layers.append(nn.Dropout(self.dropout))    ##  nn.Dropout
 
         ## hidden dim을 outputdim으로 바꿔주는 MLP
-        layers.append(nn.Linear(self.regression_input_size, self.output_dim))
+        layers.append(nn.Linear(self.seq_len *self.regression_input_size, self.output_dim))
         regressor = nn.Sequential(*layers)
         return regressor
 
@@ -86,8 +92,10 @@ class LSTM_dec(nn.Module):
         ## LSTM의 hidden state에는 tuple로 cell state포함, 0번째는 hidden state tensor, 1번째는 cell state
 
         lstm_out, self.hidden = self.lstm(x, encoder_hidden_states)
-
+        lstm_out = lstm_out.transpose(0, 1)
+        encoder_hidden_states = encoder_hidden_states[0]
         attn_applied, attn_weights = self.attention(lstm_out, encoder_hidden_states, encoder_hidden_states)
+
 
         ## lstm_out : 각 time step에서의 lstm 모델의 output 값
         ## lstm_out[-1] : 맨마지막의 아웃풋 값으로 그 다음을 예측하고싶은 것이기 때문에 -1을 해줌
@@ -97,10 +105,12 @@ class LSTM_dec(nn.Module):
 
         return y_pred, attn_weights
 
+
 def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args):
     trainloader = DataLoader(partition['train'],    ## DataLoader는 dataset에서 불러온 값으로 랜덤으로 배치를 만들어줌
                              batch_size=args.batch_size,
                              shuffle=False, drop_last=True)
+
     encoder.train()
     decoder.train()
     encoder.zero_grad()
@@ -112,6 +122,7 @@ def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args
     not_used_data_len = len(partition['train']) % args.batch_size
     train_loss = 0.0
     y_pred_graph = []
+
     for i, (X, y, min, max) in enumerate(trainloader):
 
         ## (batch size, sequence length, input dim)
@@ -120,30 +131,33 @@ def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args
         ## lstm은 한 스텝별로 forward로 진행을 함
         ## (sequence length, batch size, input dim) >> 파이토치 default lstm은 첫번째 인자를 sequence length로 받음
         ## x : [n, 10, 6], y : [m, 10]
-
         X = X.transpose(0, 1).unsqueeze(-1).float().to(args.device)
+
         ## transpose는 seq length가 먼저 나와야 하기 때문에 0번째와 1번째를 swaping
         encoder.zero_grad()
         enc_optimizer.zero_grad()
         encoder.hidden = [hidden.to(args.device) for hidden in encoder.init_hidden()]
         y_pred_enc, encoder_hidden = encoder(X)
-
         decoder_hidden = encoder_hidden
-
-
         y_true = y[:, :].float().to(args.device)  ## index-3은 종가를 의미(dataframe 상에서)
-        #print(torch.max(X[:, :, 3]), torch.max(y_true))
 
+
+        #print(torch.max(X[:, :, 3]), torch.max(y_true))
 
         decoder.zero_grad()
         dec_optimizer.zero_grad()
 
+
         y_pred_dec, atten_w = decoder(X, decoder_hidden)
+
         reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
 
         y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
+
         loss = loss_fn(y_pred_dec.view(-1), y_true.view(-1)) # .view(-1)은 1열로 줄세운것
+
         loss.backward()  ## gradient 계산
+
         enc_optimizer.step()  ## parameter 갱신
         dec_optimizer.step() ## parameter를 update 해줌 (.backward() 연산이 시행된다면(기울기 계산단계가 지나가면))
 
@@ -188,6 +202,7 @@ def validate(encoder, decoder, partition, loss_fn, args):
     val_loss = val_loss / len(valloader) ## 한 배치마다의 로스의 평균을 냄
     return val_loss, y_pred_graph, not_used_data_len   ## 그결과값이 한 에폭마다의 LOSS
 
+
 def test(encoder,decoder, partition, args):
     testloader = DataLoader(partition['test'],
                            batch_size=args.batch_size,
@@ -218,7 +233,6 @@ def test(encoder,decoder, partition, args):
             reformed_y_true = y_true.squeeze() * (max - min) + min
             y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
-
             test_loss_metric1 += metric1(reformed_y_pred, reformed_y_true)
             test_loss_metric2 += metric2(reformed_y_pred, reformed_y_true)
             test_loss_metric3 += metric3(reformed_y_pred, reformed_y_true)
@@ -230,9 +244,10 @@ def test(encoder,decoder, partition, args):
 
 
 def experiment(partition, args):
+
     encoder = args.encoder(args.input_dim, args.hid_dim, args.n_layers, args.batch_size)
     decoder = args.decoder(args.input_dim, args.hid_dim, args.y_frames, args.n_layers, args.batch_size,
-                           args.dropout, args.use_bn,args.attn_head,args.attn_size)
+                           args.dropout, args.use_bn,args.attn_head,args.attn_size, args.x_frames, activation="ReLU")
 
     encoder.to(args.device)
     decoder.to(args.device)
@@ -260,10 +275,13 @@ def experiment(partition, args):
     ## 실제로 우리는 디렉토리를 만들어야함
     ## 모델마다의 디렉토리를 만들어야하는데
     epoch_graph_list = []
+
     for epoch in range(args.epoch):  # loop over the dataset multiple times
         ts = time.time()
+
         encoder, decoder, train_loss, graph1, unused_triain = train(encoder, decoder, partition,
                                                                     enc_optimizer, dec_optimizer, loss_fn, args)
+
         val_loss, graph2, unused_val = validate(encoder, decoder, partition, loss_fn, args)
         te = time.time()
 
@@ -282,9 +300,8 @@ def experiment(partition, args):
     ## 여기서 구하는것은 val_losses에서 가장 값이 최소인 위치를 저장함
     site_val_losses = val_losses.index(min(val_losses)) ## 10 epoch일 경우 0번째~9번째 까지로 나옴
     encoder = args.encoder(args.input_dim, args.hid_dim, args.n_layers, args.batch_size)
-    decoder = args.decoder(args.input_dim, args.hid_dim, args.y_frames, args.n_layers, args.batch_size, args.dropout,
-                           args.use_bn)
-
+    decoder = args.decoder(args.input_dim, args.hid_dim, args.y_frames, args.n_layers, args.batch_size,
+                           args.dropout, args.use_bn,args.attn_head,args.attn_size, args.x_frames, activation="ReLU")
     encoder.to(args.device)
     decoder.to(args.device)
 
@@ -338,6 +355,7 @@ args.input_dim = 1
 args.hid_dim = 10
 args.n_layers = 1
 
+
 # ====== Regularization ======= #
 args.l2 = 0.00001
 args.dropout = 0.0
@@ -346,8 +364,8 @@ args.use_bn = True
 # ====== Optimizer & Training ====== #
 args.optim = 'Adam'  # 'RMSprop' #SGD, RMSprop, ADAM...
 args.lr = 0.0001
-args.epoch = 2
-args.split = 4
+args.epoch = 30
+args.split = 8
 # ====== Experiment Variable ====== #
 args.attn_head = 3
 args.attn_size = 9
@@ -388,9 +406,8 @@ args.attn_size = 9
 data_list = ['KS11','KQ11', 'IXIC', 'US500',
              'DJI', 'HK50', 'JP225', 'DE30',
              'UK100', 'FCHI', 'TWII', 'GC',
-             'CL', 'BTC/KRW', 'ETH/KRW', 'CSI300',
+             'CL', 'CSI300',
              'SSEC', 'HNX30']
-data_list = ['KS11']
 
 
 args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\attention_LSTM\\results'
