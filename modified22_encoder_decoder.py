@@ -150,6 +150,9 @@ def train(encoder,decoder, partition, enc_optimizer,dec_optimizer, loss_fn, args
 
         y_pred_dec, atten_w = decoder(X, decoder_hidden)
 
+        max = max.to(args.device)
+        min = min.to(args.device)
+
         reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
 
         y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
@@ -191,6 +194,9 @@ def validate(encoder, decoder, partition, loss_fn, args):
 
             y_pred_dec, atten_w = decoder(X,decoder_hidden)
 
+            max = max.to(args.device)
+            min = min.to(args.device)
+
             reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
             y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
 
@@ -229,6 +235,9 @@ def test(encoder,decoder, partition, args):
 
             y_pred_dec, atten_w  = decoder(X,decoder_hidden)
 
+            max = max.to(args.device)
+            min = min.to(args.device)
+            
             reformed_y_pred = y_pred_dec.squeeze() * (max - min) + min
             reformed_y_true = y_true.squeeze() * (max - min) + min
             y_pred_graph = y_pred_graph + reformed_y_pred.tolist()
@@ -534,3 +543,4 @@ with open(args.save_file_path + '\\' + 'ENC_DEC_result_t.csv', 'w', encoding='ut
         print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric1))
         print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric2))
         print('{}_{} 30 avg_test_value_list : {}'.format(model_name, args.symbol, avg_test_metric3))
+
