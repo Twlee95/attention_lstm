@@ -433,10 +433,10 @@ with open(args.save_file_path + '\\' + 'ENC_DEC_result_t.csv', 'w', encoding='ut
         model_name = "ENC_DEC_LSTM"
         args.new_file_path = args.save_file_path +'\\'+ model_name+'_' + args.symbol
         os.makedirs(args.new_file_path)
-        if args.symbol == '^KQ11':
+        if args.symbol == 'KS11':
             data_start = '2013-03-03' # (2013, 3, 3)
             data_end = '2020-12-31' # (2020, 12, 31)
-        elif args.symbol == 'CL=F':
+        elif args.symbol == 'CL':
             data_start = '2011-01-01' # (2011, 1, 1)               ##(2000, 8, 23)
             data_end =  '2020-12-31' #(2020, 12, 31)
         elif args.symbol == 'BTC-USD':
@@ -446,7 +446,7 @@ with open(args.save_file_path + '\\' + 'ENC_DEC_result_t.csv', 'w', encoding='ut
             data_start = '2015-08-07' #(2015, 8, 7)
             data_end = '2020-12-31' #(2020, 12, 31)
         else:  ## 나머지 모든 데이터들
-            data_start = '2011-01-10' # (2011, 1, 1)
+            data_start = '2011-01-01' # (2011, 1, 1)
             data_end = '2020-12-31' # (2020, 12, 31)
 
         splitted_test_train = CV_Data_Spliter(args.symbol, data_start, data_end, n_splits=args.split)

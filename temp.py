@@ -317,12 +317,13 @@ import pandas_datareader.data as pdr
 data_start = (2010, 1, 4)
 data_end = (2020, 12, 31)
 
+
+data=pdr.DataReader('^GSPC', datetime.datetime(*data_start), datetime.datetime(*data_end))
+
 data_start = "2010-01-04"
 data_end = "2020-12-31"
 
 data = pdr.DataReader('^GSPC', 'yahoo', data_start, data_end)
-data=pdr.get_data_yahoo('^GSPC', datetime.datetime(*data_start), datetime.datetime(*data_end))
-
 
 
 
