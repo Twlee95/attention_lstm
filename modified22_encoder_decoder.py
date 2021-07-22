@@ -376,8 +376,8 @@ args.lr = 0.0001
 args.epoch = 30
 args.split = 8
 # ====== Experiment Variable ====== #
-args.attn_head = 3
-args.attn_size = 9
+args.attn_head =1
+args.attn_size = 1
 
 
 # '^KS11' : KOSPI                                      'KS11'
@@ -419,7 +419,7 @@ data_list = ['KS11','KQ11', 'IXIC', 'US500',
              'SSEC', 'HNX30']
 
 
-args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\attention_LSTM\\results'
+args.save_file_path = 'C:\\Users\\leete\\PycharmProjects\\attention_LSTM\\results23'
 
 with open(args.save_file_path + '\\' + 'ENC_DEC_result_t.csv', 'w', encoding='utf-8', newline='') as f:
     wr = csv.writer(f)

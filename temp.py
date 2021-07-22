@@ -2,6 +2,11 @@ from sklearn.datasets import make_regression
 import matplotlib.pyplot as plt
 from sklearn.linear_model import Ridge
 
+import torch.nn as nn
+
+nn.TransformerEncoder
+
+
 
 
 datasets = make_regression(n_samples= 500,n_features=10, noise= 0.3 )
